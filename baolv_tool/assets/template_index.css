@@ -1,0 +1,164 @@
+* {
+    margin: 0;
+    padding: 0;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+[v-cloak] {
+    display: none !important;
+}
+
+.mr-20 {
+    margin-right: 20px;
+}
+
+.yichu {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.suoyin {
+    color: #f56c6c;
+}
+
+.look-mapinfo {
+    color: blue;
+}
+
+.el-header {
+    padding: 0;
+}
+
+.xq-header {
+    height: 60px;
+    line-height: 60px;
+    text-align: center;
+    font-size: 24px;
+    background: #222b45;
+    color: #fff;
+}
+
+.el-aside {
+    border-right: 1px solid #e6e6e6;
+    height: calc(100vh - 60px);
+}
+
+.aside-bar .aside-item {
+    height: 48px;
+    line-height: 48px;
+    padding-left: 20px;
+    border-bottom: 1px solid #e6e6e6;
+    cursor: pointer;
+}
+
+.aside-bar .aside-item.is-active {
+    background: #409eff !important;
+    color: #fff;
+}
+
+.aside-bar .aside-item:hover {
+    background: #ebf5ff;
+}
+
+.aside-bar .aside-item.is-activ .suoyin {
+    color: #626aef !important;
+}
+
+
+.main-box {
+    height: calc(100vh - 150px);
+    margin-top: 10px;
+}
+
+.main-box .item-box {
+    height: calc(100vh - 160px);
+    border-radius: 4px;
+    border: 1px solid #e6e6e6;
+    float: left;
+    width: 300px;
+}
+
+.main-box .item-box .item-info {
+    color: #404040;
+    height: 30px;
+    line-height: 30px;
+    text-align: center;
+    border-bottom: 1px solid #e6e6e6;
+    padding: 0 15px;
+}
+
+.main-box .item-box.no-data .no-item {
+    height: 90px;
+    padding: 5px 20px;
+}
+
+.main-box .item-box.no-data .no-item>span,
+.main-box .item-box .item-info>span {
+    color: #409eff;
+}
+
+.no-mapgo>span {
+    color: #409eff;
+}
+
+.main-box .item-box .item-div {
+    min-height: 30px;
+    line-height: 30px;
+    padding: 0 15px;
+    border-bottom: 1px solid #e6e6e6;
+    cursor: pointer;
+}
+
+.main-box .item-box .item-div:hover {
+    background: #ebf5ff;
+}
+
+.main-box .item-box .item-div.is-active .suoyin {
+    color: #626aef !important;
+}
+
+
+.main-box .item-box .item-div.is-active {
+    background: #409eff !important;
+    color: #fff;
+}
+
+.map-box {
+    box-sizing: border-box;
+}
+
+.map-info-box {
+    box-sizing: border-box;
+    padding: 10px 20px;
+}
+
+.map-info-go {
+    /* border: 1px dashed #409eff;
+    box-sizing: border-box;
+    padding: 10px 5px; */
+    margin-bottom: 10px;
+}
+
+.map-info-item {
+    border: 1px dashed #409eff;
+    box-sizing: border-box;
+    line-height: 30px;
+}
+
+.map-info-sl {
+    font-size: 13px;
+    color: #999;
+    line-height: 20px;
+}
+
+
+.no-mapgo {
+    box-sizing: border-box;
+    padding: 20px;
+}
+
+.map-route-step {
+    padding-left: 12px;
+}

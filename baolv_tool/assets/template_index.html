@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <!-- Import style -->
+        <link rel="stylesheet" href="./assets/element-plus.css" />
+        <!-- Import Vue 3 -->
+        <script src="./assets/vue.global.js"></script>
+        <!-- Import component library -->
+        <script src="./assets/element-plus.js"></script>
+        <script src="./assets/icons.css"></script>
+        <script src="./assets/axios.min.js"></script>
+        <link rel="stylesheet" href="./index.css" />
+        <link rel="icon" href="./favicon.ico" />
+        <title>查询系统</title>
+        <script src="./items.js?v=map-route-2"></script>
+        <script src="./monOutput.js?v=map-route-2"></script>
+        <script src="./mons.js?v=map-route-2"></script>
+        <script src="./monGen.js?v=map-route-2"></script>
+        <script src="./mapInfo.js?v=map-route-2"></script>
+        <script src="./merchant.js?v=map-route-2"></script>
+        <script src="./mapGo.js?v=map-route-2"></script>
+        <script src="./npcMapGo.js?v=map-route-2"></script>
+    </head>
+
+    <body>
+        <div v-cloak id="app">
+            <div
+                class="common-layout"
+                v-loading="loading"
+                element-loading-text="JS文件加载中..."
+            >
+                <el-container v-if="!isNotJs">
+                    <el-header>
+                        <div class="xq-header">{{ webTitle }}</div>
+                    </el-header>
+                    <el-container>
+                        <el-aside width="200px">
+                            <div class="aside-bar">
+                                <template
+                                    v-for="(item,inx) of menuList"
+                                    :key="inx"
+                                >
+                                    <div
+                                        class="aside-item"
+                                        :class="{'is-active':cutMenu == item.code}"
+                                        v-if="item.code == 'help' ? gonglveShow : true"
+                                        @click="changeItem(item)"
+                                    >
+                                        {{ item.label }}
+                                    </div>
+                                </template>
+                            </div>
+                        </el-aside>
+                        <el-main v-if="cutMenu != 'help'">
+                            <div class="search-div">
+                                <el-input
+                                    :placeholder="placeholder"
+                                    style="width: 400px; margin-right: 20px"
+                                    clearable
+                                    v-model="keyVal"
+                                    @input="toFilterData"
+                                >
+                                    <template #prefix>
+                                        <el-icon>
+                                            <Search />
+                                        </el-icon>
+                                    </template>
+                                </el-input>
+                                <el-radio-group
+                                    v-model="defaultQueryUse[cutMenu]"
+                                    v-if="showQueryOps(cutMenu)"
+                                    @change="toFilterData"
+                                >
+                                    <el-radio
+                                        v-for="(qeuryOp,qeuryOpInx) of getQeuryOps(cutMenu)"
+                                        :label="qeuryOp.value"
+                                        >{{ qeuryOp.label }}</el-radio
+                                    >
+                                </el-radio-group>
+                            </div>
+                            <div class="main-box" v-if="cutMenu == 'item'">
+                                <div class="item-box mr-20">
+                                    <el-scrollbar>
+                                        <div
+                                            class="item-div yichu"
+                                            v-for="(item,inx) of itemList"
+                                            :key="inx"
+                                            :title="item.value"
+                                            :class="{'is-active':selectItem.value == item.value}"
+                                            @click="selectItemFn(item)"
+                                        >
+                                            <span class="suoyin"
+                                                >{{ item.key }}</span
+                                            >. {{ item.value }}
+                                        </div>
+                                    </el-scrollbar>
+                                </div>
+                                <div
+                                    class="item-box mr-20"
+                                    v-if="itemOutputList.length > 0"
+                                >
+                                    <div
+                                        class="item-info yichu"
+                                        :title="'正在查 ' + selectItem.value + ' 的出处'"
+                                    >
+                                        正在查<span>{{ selectItem.value }}</span
+                                        >的出处
+                                    </div>
+                                    <div
+                                        class="item-div"
+                                        v-if="isDbClickMon"
+                                        style="text-align: center"
+                                    >
+                                        双击
+                                        <span style="color: #409eff"
+                                            >怪物名称</span
+                                        >
+                                        可以查看详细爆率信息
+                                    </div>
+                                    <el-scrollbar
+                                        :style="{'height': isDbClickMon ? 'calc(100% - 60px)' : 'calc(100% - 30px)'}"
+                                    >
+                                        <div
+                                            class="item-div yichu"
+                                            v-for="(item,inx) of itemOutputList"
+                                            :key="inx"
+                                            :class="{'is-active':selectItemOutput == item}"
+                                            @click="selectItemOutputFn(item)"
+                                            @dblclick="dbclickMon(item)"
+                                            :title="item"
+                                        >
+                                            <span class="suoyin">{{ inx }}</span
+                                            >. {{ item }}
+                                        </div>
+                                    </el-scrollbar>
+                                </div>
+                                <div class="item-box mr-20 no-data" v-else>
+                                    <div
+                                        class="no-item"
+                                        v-if="selectItem.value"
+                                        :title="'没有查到 ' + selectItem.value + ' 的出处'"
+                                    >
+                                        没有查到
+                                        <span>{{ selectItem.value }}</span>
+                                        的出处
+                                    </div>
+                                    <div class="item-info" v-else>
+                                        请先选择要查的物品
+                                    </div>
+                                </div>
+                                <div
+                                    class="item-box mr-20"
+                                    v-if="monGenList.length > 0"
+                                >
+                                    <div
+                                        class="item-info yichu"
+                                        :title="'正在查' + selectItemOutput + '的刷新地'"
+                                    >
+                                        正在查<span>{{ selectItemOutput }}</span
+                                        >的刷新地
+                                    </div>
+                                    <el-scrollbar
+                                        style="height: calc(100% - 30px)"
+                                    >
+                                        <div
+                                            class="item-div mongen-div yichu"
+                                            v-for="(item,inx) of monGenList"
+                                            :key="inx"
+                                            @click="monGenMapClick(item)"
+                                            :class="{'is-active':selectMap.key == item.map}"
+                                        >
+                                            <div
+                                                :title="allMapInfo[item.map] + '[' + item.map + ']'"
+                                            >
+                                                <span class="suoyin"
+                                                    >{{ inx }}</span
+                                                >. {{ allMapInfo[item.map] ?
+                                                allMapInfo[item.map] + '[' +
+                                                item.map +']' : '没有地方刷新'
+                                                }}
+                                            </div>
+                                            <template v-if="isShowMonGenInfo">
+                                                <div>
+                                                    <span
+                                                        class="suoyin"
+                                                        style="opacity: 0"
+                                                        >{{ inx }}.</span
+                                                    >
+                                                    刷怪坐标：{{ item.x }}，{{
+                                                    item.y }}
+                                                </div>
+                                                <div>
+                                                    <span
+                                                        class="suoyin"
+                                                        style="opacity: 0"
+                                                        >{{ inx }}.</span
+                                                    >
+                                                    刷怪范围：{{ item.f }}
+                                                </div>
+                                                <div>
+                                                    <span
+                                                        class="suoyin"
+                                                        style="opacity: 0"
+                                                        >{{ inx }}.</span
+                                                    >
+                                                    刷怪数量：{{ item.num }}
+                                                </div>
+                                                <div>
+                                                    <span
+                                                        class="suoyin"
+                                                        style="opacity: 0"
+                                                        >{{ inx }}.</span
+                                                    >
+                                                    刷怪间隔：{{ item.time }}<span v-if="item.time > 59">(实际{{item.time / 3}})</span> /
+                                                    分钟
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </el-scrollbar>
+                                </div>
+                                <div class="item-box no-data mr-20" v-else>
+                                    <div
+                                        class="no-item"
+                                        v-if="selectItemOutput"
+                                    >
+                                        <span>{{ selectItemOutput }}</span>
+                                        没有地图刷新，可能是机器人脚本刷新，或者是已经屏蔽的怪物
+                                    </div>
+                                    <div class="item-info" v-else>
+                                        请先选择要查的怪物
+                                    </div>
+                                </div>
+                                <div class="item-box no-data map-box">
+                                    <div
+                                        class="item-info yichu"
+                                        :title="'正在查 ' + selectMap.item + ' 的上级入口路线'"
+                                        v-if="selectMap.item"
+                                    >
+                                        正在查<span>{{ selectMap.item }}</span
+                                        >的上级入口路线
+                                    </div>
+                                    <div class="item-info" v-else>
+                                        请先选择要查的地图
+                                    </div>
+                                    <el-scrollbar
+                                        style="height: calc(100% - 30px)"
+                                        v-if="selectMap.item"
+                                    >
+                                        <div v-if="mapGoInfo.length > 0">
+                                            <div v-for="(route,routeInx) of mapGoInfo" :key="routeInx" class="item-div">
+                                                <div class="item-info">走法{{ routeInx + 1 }}：</div>
+                                                <div
+                                                    class="yichu map-route-step"
+                                                    v-for="(mapItem,mapInx) of route"
+                                                    :key="mapInx"
+                                                    :title="mapItem"
+                                                >
+                                                    {{ mapItem }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div v-if="mapNpcGoList.length > 0" class="no-mapgo">
+                                            <div>NPC 进入：</div>
+                                            <div
+                                                class="item-div yichu"
+                                                v-for="(npcItem,npcInx) of mapNpcGoList"
+                                                :key="npcInx"
+                                                :title="npcItem"
+                                            >
+                                                {{ npcItem }}
+                                            </div>
+                                        </div>
+                                        <div
+                                            v-if="selectMap.item && mapGoInfo.length < 1 && mapNpcGoList.length < 1"
+                                            class="no-mapgo"
+                                        >
+                                            <span>{{ selectMap.item }}</span>没有可追溯的上级入口（可能通过 NPC、脚本或活动进入）
+                                        </div>
+                                        <div class="no-mapgo">
+                                            <a
+                                                class="look-mapinfo"
+                                                href="./MapInfo.txt"
+                                                target="_blank"
+                                                >完整地图文件(点我)</a
+                                            >
+                                            <div class="map-info-sl">
+                                                地图文件下图坐标为编号，非名称。<br />
+                                                示例：3 116,123 -> 0150 4,19<br />
+                                                意思就是 3 116,123可以进入0150
+                                                4,19<br />
+                                            </div>
+                                        </div>
+                                    </el-scrollbar>
+                                </div>
+                            </div>
+                            <div class="main-box" v-if="cutMenu == 'mon'">
+                                <div class="item-box mr-20">
+                                    <div
+                                        class="item-div"
+                                        v-if="isDbClickMon"
+                                        style="text-align: center"
+                                    >
+                                        双击
+                                        <span style="color: #409eff"
+                                            >怪物名称</span
+                                        >
+                                        可以查看详细爆率信息
+                                    </div>
+                                    <el-scrollbar
+                                        :style="{'height': isDbClickMon ? 'calc(100% - 30px)' : '100%'}"
+                                    >
+                                        <div
+                                            class="item-div yichu"
+                                            v-for="(item,inx) of monList"
+                                            :key="inx"
+                                            :title="item"
+                                            :class="{'is-active':selectMon == item}"
+                                            @click="selectMonFn(item)"
+                                            @dblclick="dbclickMon(item)"
+                                        >
+                                            <span class="suoyin">{{ inx }}</span
+                                            >. {{ item }}
+                                        </div>
+                                    </el-scrollbar>
+                                </div>
+                                <div
+                                    class="item-box mr-20"
+                                    v-if="monOutputList.length > 0"
+                                >
+                                    <div
+                                        class="item-info yichu"
+                                        :title="'正在查' + selectMon + '的产处'"
+                                    >
+                                        正在查<span>{{ selectMon }}</span>的产处
+                                    </div>
+                                    <el-scrollbar
+                                        style="height: calc(100% - 30px)"
+                                    >
+                                        <div
+                                            class="item-div yichu"
+                                            v-for="(item,inx) of monOutputList"
+                                            :key="inx"
+                                            :title="item"
+                                        >
+                                            <span class="suoyin">{{ inx }}</span
+                                            >. {{ itemsDb[item] }}
+                                        </div>
+                                    </el-scrollbar>
+                                </div>
+                                <div class="item-box no-data mr-20" v-else>
+                                    <div class="no-item" v-if="selectMon">
+                                        <span>{{selectMon }}</span>
+                                        没有产出
+                                    </div>
+                                    <div class="item-info" v-else>
+                                        请先选择要查的怪物
+                                    </div>
+                                </div>
+                                <div
+                                    class="item-box mr-20"
+                                    v-if="monGenList.length > 0"
+                                >
+                                    <div
+                                        class="item-info yichu"
+                                        :title="'正在查' + selectMon + '的刷新地'"
+                                    >
+                                        正在查<span>{{ selectMon }}</span
+                                        >的刷新地
+                                    </div>
+                                    <el-scrollbar
+                                        style="height: calc(100% - 30px)"
+                                    >
+                                        <div
+                                            class="item-div yichu"
+                                            v-for="(item,inx) of monGenList"
+                                            :key="inx"
+                                            @click="monGenMapClick(item)"
+                                            :class="{'is-active':selectMap.key == item.map}"
+                                        >
+                                            <template
+                                                v-if="allMapInfo[item.map] + '[' + item.map +']'"
+                                            >
+                                                <div
+                                                    :title="allMapInfo[item.map] + '[' + item.map + ']'"
+                                                >
+                                                    <span class="suoyin"
+                                                        >{{ inx }}</span
+                                                    >. {{ allMapInfo[item.map] ?
+                                                    allMapInfo[item.map] + '[' +
+                                                    item.map +']' :
+                                                    '没有地方刷新' }}
+                                                </div>
+                                                <template
+                                                    v-if="isShowMonGenInfo"
+                                                >
+                                                    <div>
+                                                        <span
+                                                            class="suoyin"
+                                                            style="opacity: 0"
+                                                            >{{ inx }}.</span
+                                                        >
+                                                        刷怪坐标：{{ item.x
+                                                        }}，{{ item.y }}
+                                                    </div>
+                                                    <div>
+                                                        <span
+                                                            class="suoyin"
+                                                            style="opacity: 0"
+                                                            >{{ inx }}.</span
+                                                        >
+                                                        刷怪范围：{{ item.f }}
+                                                    </div>
+                                                    <div>
+                                                        <span
+                                                            class="suoyin"
+                                                            style="opacity: 0"
+                                                            >{{ inx }}.</span
+                                                        >
+                                                        刷怪数量：{{ item.num }}
+                                                    </div>
+                                                    <div>
+                                                        <span
+                                                            class="suoyin"
+                                                            style="opacity: 0"
+                                                            >{{ inx }}.</span
+                                                        >
+                                                        刷怪间隔：{{ item.time
+                                                        }}<span v-if="item.time > 59">(实际{{item.time / 3}})</span> / 分钟
+                                                    </div>
+                                                </template>
+                                            </template>
+                                        </div>
+                                    </el-scrollbar>
+                                </div>
+                                <div class="item-box no-data mr-20" v-else>
+                                    <div class="no-item" v-if="selectMon">
+                                        <span>{{ selectMon }}</span>
+                                        没有地图刷新，可能是机器人脚本刷新，或者是已经屏蔽的怪物
+                                    </div>
+                                    <div class="item-info" v-else>
+                                        请先选择要查的怪物
+                                    </div>
+                                </div>
+                                <div class="item-box no-data map-box">
+                                    <div
+                                        class="item-info yichu"
+                                        :title="'正在查 ' + selectMap.item + ' 的上级入口路线'"
+                                        v-if="selectMap.item"
+                                    >
+                                        正在查<span>{{ selectMap.item }}</span
+                                        >的上级入口路线
+                                    </div>
+                                    <div class="item-info" v-else>
+                                        请先选择要查的地图
+                                    </div>
+                                    <el-scrollbar
+                                        style="height: calc(100% - 30px)"
+                                        v-if="selectMap.item"
+                                    >
+                                        <div v-if="mapGoInfo.length > 0">
+                                            <div v-for="(route,routeInx) of mapGoInfo" :key="routeInx" class="item-div">
+                                                <div class="item-info">走法{{ routeInx + 1 }}：</div>
+                                                <div class="yichu map-route-step" v-for="(mapItem,mapInx) of route" :key="mapInx" :title="mapItem">
+                                                    {{ mapItem }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div
+                                            v-if="selectMap.item && mapGoInfo.length < 1 && mapNpcGoList.length < 1"
+                                            class="no-mapgo"
+                                        >
+                                            <span>{{ selectMap.item }}</span>没有可追溯的上级入口（可能通过 NPC、脚本或活动进入）
+                                        </div>
+                                        <div class="no-mapgo">
+                                            <a
+                                                class="look-mapinfo"
+                                                href="./MapInfo.txt"
+                                                target="_blank"
+                                                >完整地图文件(点我)</a
+                                            >
+                                            <div class="map-info-sl">
+                                                地图文件下图坐标为编号，非名称。<br />
+                                                示例：3 116,123 -> 0150 4,19<br />
+                                                意思就是 3 116,123可以进入0150
+                                                4,19<br />
+                                            </div>
+                                        </div>
+                                    </el-scrollbar>
+                                </div>
+                            </div>
+                            <div class="main-box" v-if="cutMenu == 'map'">
+                                <div class="item-box mr-20">
+                                    <el-scrollbar>
+                                        <div
+                                            class="item-div yichu"
+                                            v-for="(item,key,inx) of mapInfoObj"
+                                            :key="inx"
+                                            :title="item"
+                                            :class="{'is-active':selectMap.key == key}"
+                                            @click="selectMapFn(item,key)"
+                                        >
+                                            <span class="suoyin">{{ inx }}</span
+                                            >. {{ key }}[{{ item }}]
+                                        </div>
+                                    </el-scrollbar>
+                                </div>
+                                <div
+                                    class="item-box mr-20"
+                                    v-if="mapMonList.length > 0"
+                                >
+                                    <div
+                                        class="item-info yichu"
+                                        :title="'正在查 ' + selectMap.item + ' 的刷怪信息'"
+                                    >
+                                        正在查<span>{{ selectMap.item }}</span
+                                        >的刷怪信息
+                                    </div>
+                                    <div
+                                        class="item-div"
+                                        v-if="isDbClickMon"
+                                        style="text-align: center"
+                                    >
+                                        双击
+                                        <span style="color: #409eff"
+                                            >怪物名称</span
+                                        >
+                                        可以查看详细爆率信息
+                                    </div>
+                                    <el-scrollbar
+                                        :style="{'height': isDbClickMon ? 'calc(100% - 60px)' : 'calc(100% - 30px)'}"
+                                    >
+                                        <div
+                                            class="item-div yichu"
+                                            v-for="(item,inx) of mapMonList"
+                                            :key="inx"
+                                            @dblclick="dbclickMon(item)"
+                                            :title="item"
+                                        >
+                                            <span class="suoyin">{{ inx }}</span
+                                            >. {{ item }}
+                                        </div>
+                                    </el-scrollbar>
+                                </div>
+                                <div class="item-box mr-20 no-data" v-else>
+                                    <div
+                                        class="no-item"
+                                        v-if="selectMap.key"
+                                        :title="'没有查到 ' + selectMap.item + ' 的刷怪信息'"
+                                    >
+                                        没有查到
+                                        <span>{{ selectMap.item }}</span>
+                                        的刷怪信息，可能是废弃地图或者NPC刷怪或者脚本刷怪
+                                    </div>
+                                    <div class="item-info" v-else>
+                                        请先选择要查的地图
+                                    </div>
+                                </div>
+                                <div
+                                    class="item-box mr-20"
+                                    v-if="mapNpcList.length > 0"
+                                >
+                                    <div
+                                        class="item-info yichu"
+                                        :title="'正在查 ' + selectMap.item + ' 的Npc信息'"
+                                    >
+                                        正在查<span>{{ selectMap.item }}</span
+                                        >的Npc信息
+                                    </div>
+                                    <el-scrollbar
+                                        style="height: calc(100% - 30px)"
+                                    >
+                                        <div
+                                            class="item-div yichu"
+                                            v-for="(item,inx) of mapNpcList"
+                                            :key="inx"
+                                            :title="item"
+                                        >
+                                            <span class="suoyin">{{ inx }}</span
+                                            >. {{ item }}
+                                        </div>
+                                    </el-scrollbar>
+                                </div>
+                                <div class="item-box mr-20 no-data" v-else>
+                                    <div class="no-item" v-if="selectMap.item">
+                                        <span>{{ selectMap.item }}</span>
+                                        没有NPC
+                                    </div>
+                                    <div class="item-info" v-else>
+                                        请先选择要查的地图
+                                    </div>
+                                </div>
+                                <div class="item-box no-data map-box">
+                                    <div
+                                        class="item-info yichu"
+                                        :title="'正在查 ' + selectMap.item + ' 的上级入口路线'"
+                                        v-if="selectMap.item"
+                                    >
+                                        正在查<span>{{ selectMap.item }}</span
+                                        >的上级入口路线
+                                    </div>
+                                    <div class="item-info" v-else>
+                                        请先选择要查的地图
+                                    </div>
+                                    <el-scrollbar
+                                        style="height: calc(100% - 30px)"
+                                        v-if="selectMap.item"
+                                    >
+                                        <div v-if="mapGoInfo.length > 0">
+                                            <div v-for="(route,routeInx) of mapGoInfo" :key="routeInx" class="item-div">
+                                                <div class="item-info">走法{{ routeInx + 1 }}：</div>
+                                                <div class="yichu map-route-step" v-for="(mapItem,mapInx) of route" :key="mapInx" :title="mapItem">
+                                                    {{ mapItem }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div
+                                            v-if="selectMap.item && mapGoInfo.length < 1 && mapNpcGoList.length < 1"
+                                            class="no-mapgo"
+                                        >
+                                        <span>{{ selectMap.item }}</span>没有可追溯的上级入口（可能通过 NPC、脚本或活动进入）
+                                        </div>
+                                        <div class="no-mapgo">
+                                            <a
+                                                class="look-mapinfo"
+                                                href="./MapInfo.txt"
+                                                target="_blank"
+                                                >完整地图文件(点我)</a
+                                            >
+                                            <div class="map-info-sl">
+                                                地图文件下图坐标为编号，非名称。<br />
+                                                示例：3 116,123 -> 0150 4,19<br />
+                                                意思就是 3 116,123可以进入0150
+                                                4,19<br />
+                                            </div>
+                                        </div>
+                                    </el-scrollbar>
+                                </div>
+                            </div>
+                            <div class="main-box" v-if="cutMenu == 'npc'">
+                                <div
+                                    class="item-box mr-20"
+                                    style="width: 500px"
+                                >
+                                    <el-scrollbar>
+                                        <div
+                                            class="item-div yichu"
+                                            v-for="(item,inx) of npcList"
+                                            :key="inx"
+                                            :title="item"
+                                        >
+                                            <span class="suoyin">{{ inx }}</span
+                                            >. {{ item }}
+                                        </div>
+                                    </el-scrollbar>
+                                </div>
+                            </div>
+                        </el-main>
+                        <!-- 版本攻略存放处 -->
+                        <el-main v-else>
+                            <!-- 这里面的内容你自己删除随便改，也可从配置器选择文本手动读取。 -->
+                            <div style="white-space: pre">
+                                {{ gonglveContent }}
+                            </div>
+                        </el-main>
+                    </el-container>
+                </el-container>
+                <el-empty v-else :description="description" />
+            </div>
+        </div>
+        <script src="./index.js?v=map-route-2"></script>
+    </body>
+</html>
