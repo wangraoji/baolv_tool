@@ -172,13 +172,17 @@ class MainApp:
     # ------------------------------------------------------------------
     def _pick_server(self) -> None:
         path = filedialog.askdirectory(title="选择传奇服务端目录")
-        if path:
-            self.server_var.set(path)
-            if not self.output_var.get():
-                self.output_var.set(os.path.join(path, "查询系统"))
-            game = generator.read_game_name(path)
-            if game:
-                self.title_var.set(f"{game}查询系统")
+        if not path:
+            return
+        ok, msg = generator.is_valid_server_dir(path)
+        if not ok:
+            messagebox.showwarning(APP_NAME, msg)
+            return
+        self.server_var.set(path)
+        game = generator.read_game_name(path) or "查询系统"
+        self.title_var.set(f"{game}查询系统")
+        if not self.output_var.get():
+            self.output_var.set(os.path.join(os.path.dirname(path), f"{game}查询系统"))
 
     def _pick_output(self) -> None:
         path = filedialog.askdirectory(title="选择输出目录")
@@ -193,6 +197,10 @@ class MainApp:
             return
         if not output_dir:
             messagebox.showwarning(APP_NAME, "请选择输出目录")
+            return
+        ok, msg = generator.is_valid_server_dir(server_dir)
+        if not ok:
+            messagebox.showwarning(APP_NAME, f"服务端目录无效: {msg}")
             return
 
         exclude_text = self.exclude_text.get("1.0", "end").strip()

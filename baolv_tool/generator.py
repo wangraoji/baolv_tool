@@ -442,6 +442,20 @@ def read_game_name(server_dir: str) -> str:
     return "查询系统"
 
 
+def is_valid_server_dir(server_dir: str) -> tuple[bool, str]:
+    """校验是否为传奇服务端目录: 需要 Config.ini 且含 Mir200/Envir 目录."""
+    if not os.path.isdir(server_dir):
+        return False, "目录不存在"
+    cfg = os.path.join(server_dir, "Config.ini")
+    if not os.path.exists(cfg):
+        return False, "不是传奇服务端: 缺少 Config.ini"
+    if not os.path.exists(os.path.join(server_dir, "Mir200", "Envir")):
+        return False, "不是传奇服务端: 缺少 Mir200/Envir"
+    if not find_db_file(server_dir):
+        return False, "不是传奇服务端: 未找到 ApexM2.DB"
+    return True, ""
+
+
 # ---------------------------------------------------------------------------
 # index.js: 母版注入配置
 # ---------------------------------------------------------------------------

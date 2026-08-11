@@ -173,3 +173,83 @@
 .map-route-step {
     padding-left: 12px;
 }
+
+/* ==================== 移动端适配 ==================== */
+@media (max-width: 768px) {
+    .xq-header {
+        height: 48px;
+        line-height: 48px;
+        font-size: 18px;
+    }
+
+    .el-aside {
+        height: auto !important;
+        width: 100% !important;
+        border-right: none !important;
+        border-bottom: 1px solid #e6e6e6;
+        flex: none;
+    }
+
+    /* 让 aside(横向菜单) 与 main 纵向排列 */
+    .common-layout .el-container > .el-container {
+        flex-direction: column;
+    }
+
+    .el-main {
+        height: auto;
+        padding: 10px;
+    }
+
+    .aside-bar {
+        display: flex;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .aside-bar .aside-item {
+        height: 40px;
+        line-height: 40px;
+        padding: 0 16px;
+        border-bottom: none !important;
+        border-right: 1px solid #e6e6e6;
+        white-space: nowrap;
+        flex: 1 0 auto;
+        text-align: center;
+    }
+
+    .main-box {
+        height: auto;
+        margin-top: 8px;
+        display: block;
+    }
+
+    .main-box .item-box {
+        height: 46vh;
+        width: 100% !important;
+        margin-right: 0 !important;
+        margin-left: 0 !important;
+        margin-bottom: 12px;
+        float: none;
+    }
+
+    .main-box .item-box .item-div {
+        min-height: 36px;
+        line-height: 36px;
+    }
+
+    .search-div {
+        padding: 0 10px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .search-div .el-input {
+        width: 100% !important;
+        margin-right: 0 !important;
+    }
+
+    .search-div .el-radio-group {
+        width: 100%;
+    }
+}
