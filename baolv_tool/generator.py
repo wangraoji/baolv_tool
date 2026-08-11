@@ -312,18 +312,21 @@ def build_npc_mapgo_js(envir_dir: str, map_info: dict[str, str] | None = None) -
             if desc not in entries.setdefault(k, []):
                 entries[k].append(desc)
 
-    # merchant 里的 NPC 名 -> (所在地图, x, y, 显示名)
-    merchant_info: dict[str, tuple[str, str, str]] = {}
+    # merchant 里的条目 -> (所在地图, x, y, NPC名)
+    # key: 完整路径(如 19神壶地图/04镇魂境(混沌)), NPC名取路径最后一段
+    merchant_info: dict[str, tuple[str, str, str, str]] = {}
     merchant_path = os.path.join(envir_dir, "MerChant.txt")
     if os.path.exists(merchant_path):
         for line in read_auto(merchant_path).split("\n"):
             line = line.strip()
             if not line:
                 continue
-            parts = line.replace("\\", "|").split(" ")
-            parts = [p for p in parts if p]
+            # 统一空格/tab 分隔
+            norm = line.replace("\\", "|").replace("\t", " ").replace("/", "|")
+            parts = [p for p in norm.split(" ") if p]
             if len(parts) >= 4:
-                merchant_info[parts[0]] = (parts[1], parts[2], parts[3])
+                npc_name = parts[0].split("|")[-1].strip()
+                merchant_info[parts[0]] = (parts[1], parts[2], parts[3], npc_name)
 
     script_dirs = ["Market_Def", "QuestDiary"]
     skip_names = {"qfunction", "qmanage", "qmapenent", "qmission", "qchatbox", "qbatter", "守关人"}
@@ -361,12 +364,12 @@ def build_npc_mapgo_js(envir_dir: str, map_info: dict[str, str] | None = None) -
                     continue
                 npc_full = None
                 for key in merchant_info:
-                    if key.split("|")[-1] == npc_cand:
+                    if merchant_info[key][3] == npc_cand:
                         npc_full = key
                         break
                 if npc_full:
-                    pos = merchant_info[npc_full]
-                    npc_label = f"{npc_full}({pos[0]} {pos[1]},{pos[2]})"
+                    pos_map, pos_x, pos_y, npc_name = merchant_info[npc_full]
+                    npc_label = f"{pos_map}({pos_x},{pos_y})-{npc_name}"
                 else:
                     npc_label = f"{npc_cand}({rel})"
 
