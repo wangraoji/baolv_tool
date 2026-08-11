@@ -371,7 +371,7 @@ def build_npc_mapgo_js(envir_dir: str, map_info: dict[str, str] | None = None) -
                     pos_map, pos_x, pos_y, npc_name = merchant_info[npc_full]
                     npc_label = f"{pos_map}({pos_x},{pos_y})-{npc_name}"
                 else:
-                    npc_label = f"{npc_cand}({rel})"
+                    npc_label = "脚本"
 
                 # 按 [@标签] 分段, 逐段判断 MapMove/Map 的触发方式
                 segments = re.split(r"\n(?=\[@)", text)
