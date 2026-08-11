@@ -11,7 +11,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from . import generator
 
-APP_NAME = "爆率查询一键生成"
+APP_NAME = "爆率查询一键生成 V1.0 By qq2152860"
 
 DEFAULT_EXCLUDE = "物品1,物品2"
 
@@ -50,9 +50,21 @@ class MainApp:
         root.title(APP_NAME)
         root.geometry("760x700")
         root.minsize(680, 600)
+        self._set_window_icon()
 
         self._build_ui()
         self._poll_log()
+
+    def _set_window_icon(self) -> None:
+        """设置窗口左上角图标."""
+        try:
+            icon_path = os.path.join(self.assets_dir, "icon.png")
+            if os.path.exists(icon_path):
+                img = tk.PhotoImage(file=icon_path)
+                self.root.iconphoto(True, img)
+                self.root._icon_img = img  # 防止被GC回收
+        except tk.TclError:
+            pass
 
     # ------------------------------------------------------------------
     # UI 构建
