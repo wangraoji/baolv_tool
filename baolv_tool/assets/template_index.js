@@ -602,10 +602,16 @@ const App = {
             })
         },
         getNpcMapGoList() {
-            if (typeof npcMapGo === "undefined" || !this.selectMap.key) {
+            if (typeof npcMapGo === "undefined") {
                 return [];
             }
-            return npcMapGo[this.selectMap.key.toUpperCase()] || [];
+            const key = this.selectMap.key || "";
+            const item = this.selectMap.item || "";
+            let list = npcMapGo[key.toUpperCase()] || [];
+            if (list.length < 1 && item) {
+                list = npcMapGo[item.toUpperCase()] || [];
+            }
+            return list;
         },
         /**
         *************************************** npc信息
