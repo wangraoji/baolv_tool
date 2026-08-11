@@ -21,6 +21,28 @@ DEFAULT_EXCLUDE = (
 # 与原工具一致: 小灵通 NPC 为内置补充条目(插入在 大雄宝殿|神魂颠倒 之后)
 DEFAULT_EXTRA_NPC = "大雄宝殿|大雄宝殿|小灵通 大雄宝殿 23 34 \u3000 0 11046 0"
 
+# 查询类型选项 (显示名称 -> 对应值)
+# 与原工具一致: 3/4 = 开放给玩家自己选择(页面显示过滤单选按钮)
+ITEM_OPTIONS = [("全部物品", 1), ("有出处的物品", 2), ("开放给玩家选择", 3)]
+MON_OPTIONS = [("全部怪物", 1), ("有产出的怪", 2), ("有产出且有刷新地的怪", 3), ("开放给玩家选择", 4)]
+MAP_OPTIONS = [("全部地图", 1), ("有怪物或NPC的地图", 2), ("开放给玩家选择", 3)]
+
+
+def _label_for(options: list[tuple[str, int]], value: int) -> str:
+    """按值查显示名称."""
+    for label, val in options:
+        if val == value:
+            return label
+    return options[0][0]
+
+
+def _value_for(options: list[tuple[str, int]], label: str) -> int:
+    """按显示名称查值."""
+    for lab, val in options:
+        if lab == label:
+            return val
+    return options[0][1]
+
 
 class MainApp:
     def __init__(self, root: tk.Tk, assets_dir: str) -> None:
@@ -77,28 +99,32 @@ class MainApp:
         self.show_mon_gen = tk.BooleanVar(value=True)
         self.show_gonglve = tk.BooleanVar(value=True)
 
+        self.item_query_str = tk.StringVar(value=_label_for(ITEM_OPTIONS, self.item_query.get()))
+        self.mon_query_str = tk.StringVar(value=_label_for(MON_OPTIONS, self.mon_query.get()))
+        self.map_query_str = tk.StringVar(value=_label_for(MAP_OPTIONS, self.map_query.get()))
+
         ttk.Label(cfg, text="物品查询:").grid(row=0, column=0, sticky="w", padx=4, pady=2)
         ttk.Combobox(
             cfg,
-            textvariable=self.item_query,
-            values=[1, 2, 3],
-            width=6,
+            textvariable=self.item_query_str,
+            values=[label for label, _ in ITEM_OPTIONS],
+            width=16,
             state="readonly",
         ).grid(row=0, column=1, sticky="w")
         ttk.Label(cfg, text="怪物查询:").grid(row=0, column=2, sticky="w", padx=4)
         ttk.Combobox(
             cfg,
-            textvariable=self.mon_query,
-            values=[1, 2, 3, 4],
-            width=6,
+            textvariable=self.mon_query_str,
+            values=[label for label, _ in MON_OPTIONS],
+            width=18,
             state="readonly",
         ).grid(row=0, column=3, sticky="w")
         ttk.Label(cfg, text="地图查询:").grid(row=0, column=4, sticky="w", padx=4)
         ttk.Combobox(
             cfg,
-            textvariable=self.map_query,
-            values=[1, 2, 3],
-            width=6,
+            textvariable=self.map_query_str,
+            values=[label for label, _ in MAP_OPTIONS],
+            width=16,
             state="readonly",
         ).grid(row=0, column=5, sticky="w")
 
@@ -178,9 +204,9 @@ class MainApp:
         config = {
             "isDbClickMon": self.dbl_click.get(),
             "loadJsTime": 3000,
-            "itemQueryType": self.item_query.get(),
-            "monQueryType": self.mon_query.get(),
-            "mapQueryType": self.map_query.get(),
+            "itemQueryType": _value_for(ITEM_OPTIONS, self.item_query_str.get()),
+            "monQueryType": _value_for(MON_OPTIONS, self.mon_query_str.get()),
+            "mapQueryType": _value_for(MAP_OPTIONS, self.map_query_str.get()),
             "gonglveShow": self.show_gonglve.get(),
             "isShowMonGenInfo": self.show_mon_gen.get(),
             "webTitle": self.title_var.get().strip() or "查询系统",
