@@ -467,6 +467,17 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        <div v-if="mapNpcGoList.length > 0" class="no-mapgo">
+                                            <div>NPC 进入：</div>
+                                            <div
+                                                class="item-div yichu"
+                                                v-for="(npcItem,npcInx) of mapNpcGoList"
+                                                :key="npcInx"
+                                                :title="npcItem"
+                                            >
+                                                {{ npcItem }}
+                                            </div>
+                                        </div>
                                         <div
                                             v-if="selectMap.item && mapGoInfo.length < 1 && mapNpcGoList.length < 1"
                                             class="no-mapgo"
@@ -613,6 +624,17 @@
                                                 <div class="yichu map-route-step" v-for="(mapItem,mapInx) of route" :key="mapInx" :title="mapItem">
                                                     {{ mapItem }}
                                                 </div>
+                                            </div>
+                                        </div>
+                                        <div v-if="mapNpcGoList.length > 0" class="no-mapgo">
+                                            <div>NPC 进入：</div>
+                                            <div
+                                                class="item-div yichu"
+                                                v-for="(npcItem,npcInx) of mapNpcGoList"
+                                                :key="npcInx"
+                                                :title="npcItem"
+                                            >
+                                                {{ npcItem }}
                                             </div>
                                         </div>
                                         <div
