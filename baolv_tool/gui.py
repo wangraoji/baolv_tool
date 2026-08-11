@@ -72,7 +72,7 @@ class MainApp:
         # 输出目录
         row = ttk.Frame(self.root)
         row.pack(fill="x", **pad)
-        ttk.Label(row, text="输出目录:").pack(side="left")
+        ttk.Label(row, text="　输出目录:").pack(side="left")
         self.output_var = tk.StringVar()
         entry = ttk.Entry(row, textvariable=self.output_var)
         entry.pack(side="left", fill="x", expand=True, padx=4)
@@ -81,7 +81,7 @@ class MainApp:
         # 网站标题
         row = ttk.Frame(self.root)
         row.pack(fill="x", **pad)
-        ttk.Label(row, text="网站标题:").pack(side="left")
+        ttk.Label(row, text="　网站标题:").pack(side="left")
         self.title_var = tk.StringVar(value="查询系统")
         ttk.Entry(row, textvariable=self.title_var).pack(side="left", fill="x", expand=True)
 
