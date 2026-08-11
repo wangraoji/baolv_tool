@@ -605,16 +605,7 @@ const App = {
             if (typeof npcMapGo === "undefined" || !this.selectMap.key) {
                 return [];
             }
-            const scripts = npcMapGo[this.selectMap.key.toUpperCase()] || [];
-            const result = [];
-            merchant.forEach(el => {
-                const npc = el.split(" ").filter(item => item !== "");
-                if (scripts.includes(npc[0])) {
-                    let npcFile = npc[0].split("|").pop();
-                    result.push((mapInfo[npc[1].toUpperCase()] || npc[1]) + " " + npc[2] + "," + npc[3] + " " + this.getNpcName(npc[4], npcFile) + "进入");
-                }
-            });
-            return [...new Set(result)];
+            return npcMapGo[this.selectMap.key.toUpperCase()] || [];
         },
         /**
         *************************************** npc信息

@@ -197,10 +197,11 @@ def build_mongen_js(envir_dir: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def build_mapinfo_and_mapgo(envir_dir: str) -> tuple[str, str]:
+def build_mapinfo_and_mapgo(envir_dir: str) -> tuple[str, str, dict[str, str]]:
     src = os.path.join(envir_dir, "MapInfo.txt")
     mapinfo_lines = ["let mapInfo = {"]
     mapgo_lines = ["let mapGo = ["]
+    map_info: dict[str, str] = {}
     if os.path.exists(src):
         for raw in read_auto(src).split("\n"):
             line = raw.rstrip("\r\n")
@@ -216,6 +217,7 @@ def build_mapinfo_and_mapgo(envir_dir: str) -> tuple[str, str]:
                     tokens = header.split()
                     key = tokens[0].upper() if tokens else header
                     value = tokens[1] if len(tokens) > 1 else key
+                map_info[key] = value
                 mapinfo_lines.append(f'"{key}":`{value}`,')
                 continue
             if "->" in line and line.strip():
@@ -228,7 +230,7 @@ def build_mapinfo_and_mapgo(envir_dir: str) -> tuple[str, str]:
                     mapgo_lines.append(f'"{left} -> {right}{trailing}",')
     mapinfo_lines.append("}")
     mapgo_lines.append("]")
-    return "\n".join(mapinfo_lines), "\n".join(mapgo_lines)
+    return "\n".join(mapinfo_lines), "\n".join(mapgo_lines), map_info
 
 
 def _upper_first_preserve(text: str) -> str:
@@ -281,8 +283,95 @@ def build_merchant_js(envir_dir: str, extra_npc: str | None = None) -> str:
 # ---------------------------------------------------------------------------
 
 
-def build_npc_mapgo_js() -> str:
-    return "// Populated from fixed Map and MapMove targets in NPC scripts when available.\nlet npcMapGo = {};\n"
+def build_npc_mapgo_js(envir_dir: str, map_info: dict[str, str] | None = None) -> str:
+    """扫描 Envir 下 NPC/脚本中的 MapMove 传送命令, 生成 地图 -> 进入方式 映射.
+
+    数据来源:
+      - Market_Def/*.txt   (NPC 脚本, 文件名多为 "NPC名-目标地图名.txt")
+      - QuestDiary/*.txt   (系统脚本)
+    格式: npcMapGo[地图] = ["进入方式描述", ...]
+    地图 key 同时兼容 MapMove 目标原名与 mapInfo 显示名.
+    """
+    map_info = map_info or {}
+    entries: dict[str, list[str]] = {}
+
+    def add_entry(target: str, desc: str) -> None:
+        # 目标原名 + mapInfo 中所有值为该目标的 key
+        keys = {target.upper()}
+        for mk, mv in map_info.items():
+            if mv == target or mk == target or mk == target.upper():
+                keys.add(mk.upper())
+                keys.add(mv.upper())
+        for k in keys:
+            if desc not in entries.setdefault(k, []):
+                entries[k].append(desc)
+
+    # merchant 里的 NPC 名 -> (所在地图, x, y, 显示名)
+    merchant_info: dict[str, tuple[str, str, str]] = {}
+    merchant_path = os.path.join(envir_dir, "MerChant.txt")
+    if os.path.exists(merchant_path):
+        for line in read_auto(merchant_path).split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.replace("\\", "|").split(" ")
+            parts = [p for p in parts if p]
+            if len(parts) >= 4:
+                merchant_info[parts[0]] = (parts[1], parts[2], parts[3])
+
+    script_dirs = ["Market_Def", "QuestDiary"]
+    skip_names = {"qfunction", "qmanage", "qmapenent", "qmission", "qchatbox", "qbatter", "守关人"}
+    for sub in script_dirs:
+        base = os.path.join(envir_dir, sub)
+        if not os.path.exists(base):
+            continue
+        for root, _dirs, files in os.walk(base):
+            for fn in files:
+                if not fn.lower().endswith(".txt"):
+                    continue
+                path = os.path.join(root, fn)
+                text = read_auto(path)
+                moves = re.findall(r"MapMove\s+(\S+)", text, re.IGNORECASE)
+                targets = [m for m in moves if not m.startswith("<")]
+                if not targets:
+                    continue
+
+                # 确定 NPC 名: 优先文件名 "NPC名-xxx", 否则用 merchant 匹配
+                rel = os.path.relpath(path, envir_dir).replace("\\", "/")
+                fname = fn[:-4]
+                npc_cand = fname.split("-")[0].strip()
+                if npc_cand.lower() in skip_names:
+                    continue
+                npc_full = None
+                for key in merchant_info:
+                    if key.split("|")[-1] == npc_cand:
+                        npc_full = key
+                        break
+                if npc_full:
+                    pos = merchant_info[npc_full]
+                    label = f"{npc_full}({pos[0]} {pos[1]},{pos[2]})"
+                else:
+                    label = f"{npc_cand}({rel})"
+
+                for target in targets:
+                    desc = f"{label} 传送到{target}"
+                    add_entry(target, desc)
+
+    lines = [
+        "// Populated from fixed Map and MapMove targets in NPC scripts when available.",
+        "let npcMapGo = {",
+    ]
+    for target in sorted(entries):
+        descs = entries[target]
+        joined = ", ".join(_js_quote(d) for d in descs)
+        lines.append(f'\t"{target}":[{joined}],')
+    lines.append("};")
+    return "\n".join(lines)
+
+
+def _js_quote(text: str) -> str:
+    """转义 JS 字符串(单引号), 用于数组元素."""
+    return "'" + text.replace("\\", "\\\\").replace("'", "\\'") + "'"
 
 
 # ---------------------------------------------------------------------------
@@ -383,11 +472,11 @@ def generate(
     log("解析刷怪列表...")
     mongen_js = build_mongen_js(envir_dir)
     log("解析地图信息...")
-    mapinfo_js, mapgo_js = build_mapinfo_and_mapgo(envir_dir)
+    mapinfo_js, mapgo_js, map_info = build_mapinfo_and_mapgo(envir_dir)
     log("解析 NPC 列表...")
     extra_npc = config.get("extra_npc")
     merchant_js = build_merchant_js(envir_dir, extra_npc)
-    npc_mapgo_js = build_npc_mapgo_js()
+    npc_mapgo_js = build_npc_mapgo_js(envir_dir, map_info)
 
     # 母版 -> index 文件
     log("生成 index.html / index.js / index.css ...")
