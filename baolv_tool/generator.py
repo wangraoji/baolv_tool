@@ -75,6 +75,11 @@ def read_auto(path: str) -> str:
         return _read_text(path, UTF8)
 
 
+def _clean_text(text: str) -> str:
+    """清理文本中的控制字符(回车/换行/制表等), 避免生成非法 JS."""
+    return re.sub(r"[\r\n\t]+", "", text or "")
+
+
 # ---------------------------------------------------------------------------
 # items.js: 物品数据库
 # ---------------------------------------------------------------------------
@@ -88,7 +93,7 @@ def build_items_js(db_path: str) -> str:
         conn.close()
     lines = ["let items = {"]
     for idx, name in rows:
-        lines.append(f'\t"{idx}":"{name}",')
+        lines.append(f'\t"{idx}":"{_clean_text(name)}",')
     lines.append("}")
     return "\n".join(lines)
 
@@ -106,7 +111,7 @@ def build_mons_js(db_path: str) -> str:
         conn.close()
     lines = ["let mons = ["]
     for (name,) in rows:
-        lines.append(f'\t"{name}",')
+        lines.append(f'\t"{_clean_text(name)}",')
     lines.append("]")
     return "\n".join(lines)
 
@@ -146,6 +151,7 @@ def build_monoutput_js(db_path: str, monitems_dir: str, exclude_names: set[str] 
 
     lines = ["let monOutput = {"]
     for (monname,) in mon_rows:
+        monname = _clean_text(monname)
         ids: list[str] = []
         seen: set[str] = set()
         file_path = os.path.join(monitems_dir, f"{monname}.txt")
