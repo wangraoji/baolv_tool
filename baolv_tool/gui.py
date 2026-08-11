@@ -13,10 +13,7 @@ from . import generator
 
 APP_NAME = "爆率查询一键生成"
 
-DEFAULT_EXCLUDE = (
-    "金钥匙,天之屠龙,龙牙,逍遥扇,怒斩,黄金开天,海边月,七星刀,苹果,封魔剑,"
-    "乾坤剑,斩魔魔剑,绝息之锋,黑暗使者称号卷,虎卫堂探险家称号卷"
-)
+DEFAULT_EXCLUDE = "物品1,物品2"
 
 # 与原工具一致: 小灵通 NPC 为内置补充条目(插入在 大雄宝殿|神魂颠倒 之后)
 DEFAULT_EXTRA_NPC = "大雄宝殿|大雄宝殿|小灵通 大雄宝殿 23 34 \u3000 0 11046 0"
@@ -51,8 +48,8 @@ class MainApp:
         self.log_queue: queue.Queue[str] = queue.Queue()
 
         root.title(APP_NAME)
-        root.geometry("720x560")
-        root.minsize(640, 480)
+        root.geometry("760x700")
+        root.minsize(680, 600)
 
         self._build_ui()
         self._poll_log()
