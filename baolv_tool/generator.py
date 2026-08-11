@@ -344,7 +344,7 @@ def build_npc_mapgo_js(envir_dir: str, map_info: dict[str, str] | None = None) -
                     continue
                 path = os.path.join(root, fn)
                 text = read_auto(path)
-                if not re.search(r"MapMove\s+", text, re.IGNORECASE):
+                if not re.search(r"(?im)^\s*(MapMove|Map)\s+", text):
                     continue
 
                 # 确定 NPC 名: 优先文件名 "NPC名-xxx", 否则用 merchant 匹配
@@ -364,11 +364,11 @@ def build_npc_mapgo_js(envir_dir: str, map_info: dict[str, str] | None = None) -
                 else:
                     npc_label = f"{npc_cand}({rel})"
 
-                # 按 [@标签] 分段, 逐段判断 MapMove 的触发方式
+                # 按 [@标签] 分段, 逐段判断 MapMove/Map 的触发方式
                 segments = re.split(r"\n(?=\[@)", text)
                 file_kill_mon = ""
                 for seg in segments:
-                    moves = re.findall(r"MapMove\s+(\S+)", seg, re.IGNORECASE)
+                    moves = re.findall(r"(?im)^\s*(?:MapMove|Map)\s+(\S+)", seg)
                     targets = [m for m in moves if not m.startswith("<")]
                     seg_name = ""
                     seg_m = re.match(r"\[@([^\]]+)\]", seg)
