@@ -83,7 +83,7 @@ class MainApp:
         row.pack(fill="x", **pad)
         ttk.Label(row, text="　网站标题:").pack(side="left")
         self.title_var = tk.StringVar(value="查询系统")
-        ttk.Entry(row, textvariable=self.title_var).pack(side="left", fill="x", expand=True)
+        ttk.Entry(row, textvariable=self.title_var).pack(side="left", fill="x", expand=True, padx=4)
 
         # 查询类型配置
         cfg = ttk.LabelFrame(self.root, text="查询选项")
