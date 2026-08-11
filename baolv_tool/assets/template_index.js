@@ -551,7 +551,8 @@ const App = {
                     let newArr = tempArr.filter(el => el != '');
                     let npcMap = newArr[1] ? newArr[1].toUpperCase() : "";
                     if (npcMap == this.selectMap.key.toUpperCase()) {
-                        this.mapNpcList.push(this.getNpcName(newArr[4]) + " " + newArr[2] + "," + newArr[3])
+                        let npcFile = newArr[0].split("|").pop();
+                        this.mapNpcList.push(this.getNpcName(newArr[4], npcFile) + " " + newArr[2] + "," + newArr[3])
                     }
                 }
             })
@@ -609,7 +610,8 @@ const App = {
             merchant.forEach(el => {
                 const npc = el.split(" ").filter(item => item !== "");
                 if (scripts.includes(npc[0])) {
-                    result.push((mapInfo[npc[1].toUpperCase()] || npc[1]) + " " + npc[2] + "," + npc[3] + " " + this.getNpcName(npc[4]) + "进入");
+                    let npcFile = npc[0].split("|").pop();
+                    result.push((mapInfo[npc[1].toUpperCase()] || npc[1]) + " " + npc[2] + "," + npc[3] + " " + this.getNpcName(npc[4], npcFile) + "进入");
                 }
             });
             return [...new Set(result)];
@@ -624,12 +626,13 @@ const App = {
                 let tempArr = el.split(" ");
                 if (tempArr.length > 3) {
                     let newArr = tempArr.filter(el => el != '');
+                    let npcFile = newArr[0].split("|").pop();
                     if (val) {
                         if (newArr[4].indexOf(val) != -1) {
-                            this.npcList.push(this.getNpcName(newArr[4]) + "---" + mapInfo[newArr[1].toUpperCase()] + '[' + newArr[2] + "," + newArr[3] + ']')
+                            this.npcList.push(this.getNpcName(newArr[4], npcFile) + "---" + mapInfo[newArr[1].toUpperCase()] + '[' + newArr[2] + "," + newArr[3] + ']')
                         }
                     } else {
-                        this.npcList.push(this.getNpcName(newArr[4]) + "---" + mapInfo[newArr[1].toUpperCase()] + '[' + newArr[2] + "," + newArr[3] + ']')
+                        this.npcList.push(this.getNpcName(newArr[4], npcFile) + "---" + mapInfo[newArr[1].toUpperCase()] + '[' + newArr[2] + "," + newArr[3] + ']')
                     }
 
                 }
@@ -638,9 +641,9 @@ const App = {
                 this.loading = false;
             }, 200);
         },
-        getNpcName(str) {
-            if (str == 1 || str == 0) {
-                return "图标NPC"
+        getNpcName(str, file) {
+            if (str == 1 || str == 0 || str == "　") {
+                return file ? "图标NPC(" + file + ")" : "图标NPC"
             } else {
                 return str
             }
