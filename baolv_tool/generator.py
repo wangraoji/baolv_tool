@@ -27,7 +27,7 @@ UTF8 = "utf-8"
 
 
 def find_db_file(server_dir: str) -> str | None:
-    """从服务端 Config.ini 或常见路径定位 ApexM2.DB."""
+    """从服务端 Config.ini 或常见路径定位 LF 引擎的 ApexM2.DB."""
     candidates = [
         os.path.join(server_dir, "Mud2", "DB", "ApexM2.DB"),
         os.path.join(server_dir, "ApexM2.DB"),
@@ -50,6 +50,77 @@ def find_db_file(server_dir: str) -> str | None:
             cand = os.path.join(server_dir, "Mud2", "DB", base)
             if os.path.exists(cand):
                 return cand
+    return None
+
+
+def detect_engine(server_dir: str) -> str:
+    """判断服务端引擎类型, 优先看 Config.ini 中数据库路径的后缀.
+
+    - 'lf'  : LF/翎风 引擎, 数据库是 sqlite (.db)
+    - 'gom' : GOM 引擎, 数据库是 Access (.mdb / .accdb)
+    - 'unknown': 无法判断
+    """
+    db_ref = _find_db_ref(server_dir)
+    if db_ref:
+        low = db_ref.lower()
+        if low.endswith((".mdb", ".accdb")):
+            return "gom"
+        if low.endswith((".db", ".sqlite", ".sqlite3")):
+            return "lf"
+    # 兜底: 看 UseSqliteDB 字段
+    cfg = os.path.join(server_dir, "Config.ini")
+    if os.path.exists(cfg):
+        text = _read_text(cfg)
+        if re.search(r"UseSqliteDB\s*=\s*1", text, re.IGNORECASE) or "SqliteDBName" in text:
+            return "lf"
+    return "unknown"
+
+
+def _find_db_ref(server_dir: str) -> str | None:
+    """从 Config.ini 中找数据库路径引用(.db/.mdb/.accdb 后缀的值)."""
+    cfg = os.path.join(server_dir, "Config.ini")
+    if not os.path.exists(cfg):
+        return None
+    text = _read_text(cfg)
+    for m in re.finditer(r"=\s*([^\s;]+(?:\.db|\.mdb|\.accdb|\.sqlite|\.sqlite3))", text, re.IGNORECASE):
+        return m.group(1).strip().strip('"').strip("'").replace("\\", "/")
+    return None
+
+
+def find_any_db(server_dir: str) -> tuple[str, str] | None:
+    """按引擎定位数据库文件, 返回 (engine, db_path)."""
+    engine = detect_engine(server_dir)
+    if engine == "gom":
+        # 先从 Config.ini 引用路径找, 再全目录搜
+        ref = _find_db_ref(server_dir)
+        if ref and os.path.exists(ref):
+            return "gom", ref
+        base = os.path.basename(ref) if ref else None
+        for root, _dirs, files in os.walk(server_dir):
+            for fn in files:
+                if fn.lower().endswith((".mdb", ".accdb")):
+                    if base and fn.lower() == base.lower():
+                        return "gom", os.path.join(root, fn)
+                    if base is None:
+                        return "gom", os.path.join(root, fn)
+        if base:
+            for root, _dirs, files in os.walk(server_dir):
+                for fn in files:
+                    if fn.lower() == base.lower():
+                        return "gom", os.path.join(root, fn)
+        return "gom", None
+    # LF 或未知: 尝试 sqlite
+    db = find_db_file(server_dir)
+    if db:
+        return "lf", db
+    if engine == "unknown":
+        # 兜底: 全目录搜 sqlite / mdb
+        for root, _dirs, files in os.walk(server_dir):
+            for fn in files:
+                if fn.lower().endswith(".db"):
+                    return "lf", os.path.join(root, fn)
+                if fn.lower().endswith((".mdb", ".accdb")):
+                    return "gom", os.path.join(root, fn)
     return None
 
 
@@ -81,16 +152,123 @@ def _clean_text(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# 数据库读取 (LF sqlite / GOM Access)
+# ---------------------------------------------------------------------------
+
+
+def _read_sqlite_rows(db_path: str, table: str, columns: str) -> list[tuple]:
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    try:
+        return conn.execute(f"SELECT {columns} FROM {table}").fetchall()
+    finally:
+        conn.close()
+
+
+def _read_mdb_rows(db_path: str, table: str, columns: str) -> list[tuple]:
+    """读取 Access 数据库表. 依次尝试: mdb-export (mdbtools) -> pyodbc."""
+    import subprocess
+
+    # 尝试 mdbtools 命令
+    try:
+        proc = subprocess.run(
+            ["mdb-export", db_path, table],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if proc.returncode == 0 and proc.stdout.strip():
+            rows: list[tuple] = []
+            lines = proc.stdout.splitlines()
+            if not lines:
+                return rows
+            header = lines[0].split(",")
+            # 找目标列索引
+            want = columns.split(",")
+            idxs = []
+            for w in want:
+                w = w.strip().strip('"').lower()
+                found = -1
+                for i, h in enumerate(header):
+                    if h.strip().strip('"').lower() == w:
+                        found = i
+                        break
+                idxs.append(found)
+            if any(i < 0 for i in idxs):
+                return rows
+            for line in lines[1:]:
+                # CSV 解析(简单, 处理带引号字段)
+                cells = _parse_csv_line(line)
+                if len(cells) > max(idxs):
+                    rows.append(tuple(cells[i].strip() for i in idxs))
+            return rows
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+    # 尝试 pyodbc
+    try:
+        import pyodbc  # type: ignore
+        conn = pyodbc.connect(
+            r"DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};DBQ=" + db_path
+        )
+        try:
+            cur = conn.cursor()
+            cur.execute(f"SELECT {columns} FROM {table}")
+            return [tuple(row) for row in cur.fetchall()]
+        finally:
+            conn.close()
+    except ImportError:
+        raise RuntimeError(
+            "GOM 引擎 Access 数据库读取失败: 需要安装 mdbtools 或 pyodbc。\n"
+            "  - macOS/Linux: brew install mdbtools  (或 pip install pyodbc)\n"
+            "  - Windows:     pip install pyodbc"
+        )
+
+
+def _parse_csv_line(line: str) -> list[str]:
+    """简易 CSV 行解析, 处理引号包裹的字段."""
+    cells: list[str] = []
+    cur = ""
+    in_q = False
+    for ch in line:
+        if ch == '"':
+            if in_q and cur.endswith('"'):
+                cur = cur[:-1] + '"'
+            else:
+                in_q = not in_q
+        elif ch == "," and not in_q:
+            cells.append(cur)
+            cur = ""
+        else:
+            cur += ch
+    cells.append(cur)
+    return cells
+
+
+def read_stditems(engine: str, db_path: str) -> list[tuple]:
+    """返回 [(Idx, Name), ...] 按 Idx 排序."""
+    if engine == "gom":
+        rows = _read_mdb_rows(db_path, "StdItems", "Idx, Name")
+        return [(str(r[0]), _clean_text(r[1])) for r in rows]
+    rows = _read_sqlite_rows(db_path, "StdItems", "Idx, Name")
+    return [(str(r[0]), _clean_text(r[1])) for r in rows]
+
+
+def read_monsters(engine: str, db_path: str) -> list[tuple]:
+    """返回 [(Name,), ...]."""
+    if engine == "gom":
+        rows = _read_mdb_rows(db_path, "Monster", "Name")
+        return [(_clean_text(r[0]),) for r in rows]
+    rows = _read_sqlite_rows(db_path, "Monster", "Name")
+    return [(_clean_text(r[0]),) for r in rows]
+
+
+# ---------------------------------------------------------------------------
 # items.js: 物品数据库
 # ---------------------------------------------------------------------------
 
 
-def build_items_js(db_path: str) -> str:
-    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-    try:
-        rows = conn.execute("SELECT Idx, Name FROM StdItems ORDER BY Idx").fetchall()
-    finally:
-        conn.close()
+def build_items_js(db_path: str, engine: str = "lf") -> str:
+    rows = read_stditems(engine, db_path)
     lines = ["let items = {"]
     for idx, name in rows:
         lines.append(f'\t"{idx}":"{_clean_text(name)}",')
@@ -103,12 +281,8 @@ def build_items_js(db_path: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def build_mons_js(db_path: str) -> str:
-    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-    try:
-        rows = conn.execute("SELECT Name FROM Monster").fetchall()
-    finally:
-        conn.close()
+def build_mons_js(db_path: str, engine: str = "lf") -> str:
+    rows = read_monsters(engine, db_path)
     lines = ["let mons = ["]
     for (name,) in rows:
         lines.append(f'\t"{_clean_text(name)}",')
@@ -121,7 +295,7 @@ def build_mons_js(db_path: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def build_monoutput_js(db_path: str, monitems_dir: str, exclude_names: set[str] | None = None) -> str:
+def build_monoutput_js(db_path: str, monitems_dir: str, exclude_names: set[str] | None = None, engine: str = "lf") -> str:
     """读取每个怪物的爆率文件, 把物品名解析成数据库中的 ID.
 
     解析规则:
@@ -130,24 +304,15 @@ def build_monoutput_js(db_path: str, monitems_dir: str, exclude_names: set[str] 
       - 名字 -> ID 采用数据库首个匹配(与源工具一致)
       - exclude_names 中列出的物品名会被过滤掉(可选)
     """
-    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-    try:
-        rows = conn.execute("SELECT Idx, Name FROM StdItems ORDER BY Idx").fetchall()
-    finally:
-        conn.close()
     name2id: dict[str, str] = {}
-    for idx, name in rows:
+    for idx, name in read_stditems(engine, db_path):
         if name not in name2id:
             name2id[name] = str(idx)
 
     exclude = exclude_names or set()
 
     # 怪物列表(与 mons.js 顺序一致)
-    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-    try:
-        mon_rows = conn.execute("SELECT Name FROM Monster").fetchall()
-    finally:
-        conn.close()
+    mon_rows = read_monsters(engine, db_path)
 
     lines = ["let monOutput = {"]
     for (monname,) in mon_rows:
@@ -452,7 +617,11 @@ def read_game_name(server_dir: str) -> str:
 
 
 def is_valid_server_dir(server_dir: str) -> tuple[bool, str]:
-    """校验是否为传奇服务端目录: 需要 Config.ini 且含 Mir200/Envir 目录."""
+    """校验是否为传奇服务端目录: 需要 Config.ini 且含 Mir200/Envir 目录.
+
+    注意: 不检测数据库文件, 因为不同引擎数据库类型不同
+    (LF 用 ApexM2.DB sqlite, GOM 用 Access .mdb 等).
+    """
     if not os.path.isdir(server_dir):
         return False, "目录不存在"
     cfg = os.path.join(server_dir, "Config.ini")
@@ -460,8 +629,6 @@ def is_valid_server_dir(server_dir: str) -> tuple[bool, str]:
         return False, "不是传奇服务端: 缺少 Config.ini"
     if not os.path.exists(os.path.join(server_dir, "Mir200", "Envir")):
         return False, "不是传奇服务端: 缺少 Mir200/Envir"
-    if not find_db_file(server_dir):
-        return False, "不是传奇服务端: 未找到 ApexM2.DB"
     return True, ""
 
 
@@ -530,21 +697,26 @@ def generate(
     log = log or (lambda msg: None)
 
     envir_dir = find_envir_dir(server_dir)
-    db_path = find_db_file(server_dir)
+    db_info = find_any_db(server_dir)
+    if not db_info:
+        raise FileNotFoundError(f"未找到数据库文件 (服务端目录: {server_dir})")
+    engine, db_path = db_info
     if not db_path:
-        raise FileNotFoundError(f"未找到 ApexM2.DB (服务端目录: {server_dir})")
+        raise FileNotFoundError(
+            f"已识别为 {engine} 引擎, 但未找到对应数据库文件 (服务端目录: {server_dir})"
+        )
     if not os.path.exists(envir_dir):
         raise FileNotFoundError(f"未找到 Mir200/Envir 目录: {envir_dir}")
 
     monitems_dir = os.path.join(envir_dir, "MonItems")
     os.makedirs(output_dir, exist_ok=True)
 
-    log("读取物品数据库...")
-    items_js = build_items_js(db_path)
+    log(f"读取物品数据库 ({engine})...")
+    items_js = build_items_js(db_path, engine)
     log("读取怪物列表...")
-    mons_js = build_mons_js(db_path)
+    mons_js = build_mons_js(db_path, engine)
     log("解析怪物爆率...")
-    monoutput_js = build_monoutput_js(db_path, monitems_dir, exclude_names)
+    monoutput_js = build_monoutput_js(db_path, monitems_dir, exclude_names, engine)
     log("解析刷怪列表...")
     mongen_js = build_mongen_js(envir_dir)
     log("解析地图信息...")
