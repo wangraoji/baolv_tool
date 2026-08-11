@@ -165,83 +165,48 @@ def _read_sqlite_rows(db_path: str, table: str, columns: str) -> list[tuple]:
 
 
 def _read_mdb_rows(db_path: str, table: str, columns: str) -> list[tuple]:
-    """读取 Access 数据库表. 依次尝试: mdb-export (mdbtools) -> pyodbc."""
-    import subprocess
+    """用纯 Python 库 access_parser 读取 Access(.mdb) 数据库表.
 
-    # 尝试 mdbtools 命令
+    access_parser 无需外部工具/驱动, 纯解析 .mdb 文件.
+    注意: 仅支持 .mdb (Jet), 不支持 .accdb.
+    """
     try:
-        proc = subprocess.run(
-            ["mdb-export", db_path, table],
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-        if proc.returncode == 0 and proc.stdout.strip():
-            rows: list[tuple] = []
-            lines = proc.stdout.splitlines()
-            if not lines:
-                return rows
-            header = lines[0].split(",")
-            # 找目标列索引
-            want = columns.split(",")
-            idxs = []
-            for w in want:
-                w = w.strip().strip('"').lower()
-                found = -1
-                for i, h in enumerate(header):
-                    if h.strip().strip('"').lower() == w:
-                        found = i
-                        break
-                idxs.append(found)
-            if any(i < 0 for i in idxs):
-                return rows
-            for line in lines[1:]:
-                # CSV 解析(简单, 处理带引号字段)
-                cells = _parse_csv_line(line)
-                if len(cells) > max(idxs):
-                    rows.append(tuple(cells[i].strip() for i in idxs))
-            return rows
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        pass
-
-    # 尝试 pyodbc
-    try:
-        import pyodbc  # type: ignore
-        conn = pyodbc.connect(
-            r"DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};DBQ=" + db_path
-        )
-        try:
-            cur = conn.cursor()
-            cur.execute(f"SELECT {columns} FROM {table}")
-            return [tuple(row) for row in cur.fetchall()]
-        finally:
-            conn.close()
+        from access_parser import AccessParser
     except ImportError:
         raise RuntimeError(
-            "GOM 引擎 Access 数据库读取失败: 需要安装 mdbtools 或 pyodbc。\n"
-            "  - macOS/Linux: brew install mdbtools  (或 pip install pyodbc)\n"
-            "  - Windows:     pip install pyodbc"
+            "读取 GOM 数据库失败: 缺少 access_parser 库, 请安装依赖 (pip install access_parser)"
         )
 
+    if not os.path.exists(db_path):
+        raise RuntimeError(f"数据库文件不存在: {db_path}")
 
-def _parse_csv_line(line: str) -> list[str]:
-    """简易 CSV 行解析, 处理引号包裹的字段."""
-    cells: list[str] = []
-    cur = ""
-    in_q = False
-    for ch in line:
-        if ch == '"':
-            if in_q and cur.endswith('"'):
-                cur = cur[:-1] + '"'
-            else:
-                in_q = not in_q
-        elif ch == "," and not in_q:
-            cells.append(cur)
-            cur = ""
-        else:
-            cur += ch
-    cells.append(cur)
-    return cells
+    try:
+        db = AccessParser(db_path)
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(f"打开数据库失败(可能是 .accdb 格式): {exc}")
+    try:
+        data = db.parse_table(table)  # data[列名][行索引]
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(f"读取数据库表 {table} 失败: {exc}")
+
+    want = [c.strip() for c in columns.split(",")]
+    col_list = list(data.keys())
+    idxs = []
+    for w in want:
+        found = -1
+        for i, c in enumerate(col_list):
+            if c.lower() == w.lower():
+                found = i
+                break
+        idxs.append(found)
+    if any(i < 0 for i in idxs):
+        return []
+
+    rows: list[tuple] = []
+    nrows = len(data[col_list[0]])
+    for r in range(nrows):
+        rows.append(tuple(data[col_list[i]][r] for i in idxs))
+    return rows
 
 
 def read_stditems(engine: str, db_path: str) -> list[tuple]:
