@@ -70,14 +70,25 @@
 .main-box {
     height: calc(100vh - 150px);
     margin-top: 10px;
+    display: flex;
 }
 
 .main-box .item-box {
     height: calc(100vh - 160px);
     border-radius: 4px;
     border: 1px solid #e6e6e6;
-    float: left;
     width: 300px;
+    flex: 1 1 0;
+    min-width: 0;
+    margin-right: 0;
+}
+
+.main-box .item-box + .item-box {
+    margin-left: 20px;
+}
+
+.main-box .item-box.mr-20 {
+    margin-right: 0;
 }
 
 .main-box .item-box .item-info {
