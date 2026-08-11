@@ -17,13 +17,19 @@ jobs:
           python-version: "3.13"
 
       - name: Install PyInstaller
-        run: pip install pyinstaller
+        run: python -m pip install --upgrade pyinstaller
 
       - name: Build EXE
-        run: pyinstaller baolv_tool.spec
+        run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name baolv_tool --add-data "baolv_tool/assets;assets" main.py
+
+      - name: Verify output
+        run: |
+          ls -la dist/
+          test -f dist/baolv_tool.exe && echo "EXE exists"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: baolv_tool-windows
           path: dist/baolv_tool.exe
+          if-no-files-found: error
