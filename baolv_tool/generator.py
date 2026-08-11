@@ -321,6 +321,19 @@ def build_npc_mapgo_js(envir_dir: str, map_info: dict[str, str] | None = None) -
 
     script_dirs = ["Market_Def", "QuestDiary"]
     skip_names = {"qfunction", "qmanage", "qmapenent", "qmission", "qchatbox", "qbatter", "守关人"}
+    # 收集所有 CreateNPC 创建的 NPC 名 (动态生成NPC)
+    created_npcs: set[str] = set()
+    for sub in script_dirs:
+        base = os.path.join(envir_dir, sub)
+        if not os.path.exists(base):
+            continue
+        for root, _dirs, files in os.walk(base):
+            for fn in files:
+                if not fn.lower().endswith(".txt"):
+                    continue
+                for m in re.finditer(r"CreateNPC\s+(\S+)", read_auto(os.path.join(root, fn)), re.IGNORECASE):
+                    created_npcs.add(m.group(1))
+
     for sub in script_dirs:
         base = os.path.join(envir_dir, sub)
         if not os.path.exists(base):
@@ -331,9 +344,7 @@ def build_npc_mapgo_js(envir_dir: str, map_info: dict[str, str] | None = None) -
                     continue
                 path = os.path.join(root, fn)
                 text = read_auto(path)
-                moves = re.findall(r"MapMove\s+(\S+)", text, re.IGNORECASE)
-                targets = [m for m in moves if not m.startswith("<")]
-                if not targets:
+                if not re.search(r"MapMove\s+", text, re.IGNORECASE):
                     continue
 
                 # 确定 NPC 名: 优先文件名 "NPC名-xxx", 否则用 merchant 匹配
@@ -349,13 +360,55 @@ def build_npc_mapgo_js(envir_dir: str, map_info: dict[str, str] | None = None) -
                         break
                 if npc_full:
                     pos = merchant_info[npc_full]
-                    label = f"{npc_full}({pos[0]} {pos[1]},{pos[2]})"
+                    npc_label = f"{npc_full}({pos[0]} {pos[1]},{pos[2]})"
                 else:
-                    label = f"{npc_cand}({rel})"
+                    npc_label = f"{npc_cand}({rel})"
 
-                for target in targets:
-                    desc = f"{label} 传送到{target}"
-                    add_entry(target, desc)
+                # 按 [@标签] 分段, 逐段判断 MapMove 的触发方式
+                segments = re.split(r"\n(?=\[@)", text)
+                file_kill_mon = ""
+                for seg in segments:
+                    moves = re.findall(r"MapMove\s+(\S+)", seg, re.IGNORECASE)
+                    targets = [m for m in moves if not m.startswith("<")]
+                    seg_name = ""
+                    seg_m = re.match(r"\[@([^\]]+)\]", seg)
+                    if seg_m:
+                        seg_name = seg_m.group(1)
+
+                    # 跟踪杀怪文件中的怪名(跨段继承)
+                    for km in re.finditer(r"KillMonNameEX?>\s*([^\s#]+)", seg):
+                        file_kill_mon = km.group(1)
+
+                    if not targets:
+                        continue
+
+                    # 触发方式推断
+                    trigger = "按钮"
+                    is_kill_file = "杀怪触发" in fn or seg_name in ("杀怪", "OnKillMon")
+                    # 1) 杀怪触发
+                    kill_mon = ""
+                    for km in re.finditer(r"KillMonNameEX?>\s*([^\s#]+)", seg):
+                        kill_mon = km.group(1)
+                    if is_kill_file:
+                        if not kill_mon and file_kill_mon:
+                            kill_mon = file_kill_mon
+                        trigger = f"杀怪({kill_mon})" if kill_mon else "杀怪"
+                    # 2) 双击触发
+                    elif "双击触发" in fn or seg_name.startswith("StdModeFunc"):
+                        trigger = "双击物品"
+                    # 3) 地图事件
+                    elif "地图事件" in fn or seg_name.startswith("Map"):
+                        trigger = "地图事件"
+                    # 4) 登陆触发
+                    elif "登陆脚本" in fn:
+                        trigger = "登陆触发"
+                    # 5) 动态创建NPC
+                    if npc_cand in created_npcs:
+                        trigger = f"{npc_cand} 生成NPC传送"
+
+                    for target in targets:
+                        desc = f"{npc_label} {trigger}传送到{target}"
+                        add_entry(target, desc)
 
     lines = [
         "// Populated from fixed Map and MapMove targets in NPC scripts when available.",
