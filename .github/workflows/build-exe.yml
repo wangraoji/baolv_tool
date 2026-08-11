@@ -23,9 +23,10 @@ jobs:
         run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name baolv_tool --add-data "baolv_tool/assets;assets" main.py
 
       - name: Verify output
+        shell: pwsh
         run: |
-          ls -la dist/
-          test -f dist/baolv_tool.exe && echo "EXE exists"
+          Get-ChildItem dist/
+          if (Test-Path "dist/baolv_tool.exe") { Write-Host "EXE exists" } else { throw "EXE not found" }
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
