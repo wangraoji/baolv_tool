@@ -213,8 +213,7 @@
                                                         style="opacity: 0"
                                                         >{{ inx }}.</span
                                                     >
-                                                    刷怪间隔：{{ item.time }}<span v-if="item.time > 59">(实际{{item.time / 3}})</span> /
-                                                    分钟
+                                                    刷怪间隔：{{ formatMonGenTime(item.time) }}
                                                 </div>
                                             </template>
                                         </div>
@@ -426,8 +425,7 @@
                                                             style="opacity: 0"
                                                             >{{ inx }}.</span
                                                         >
-                                                        刷怪间隔：{{ item.time
-                                                        }}<span v-if="item.time > 59">(实际{{item.time / 3}})</span> / 分钟
+                                                        刷怪间隔：{{ formatMonGenTime(item.time) }}
                                                     </div>
                                                 </template>
                                             </template>

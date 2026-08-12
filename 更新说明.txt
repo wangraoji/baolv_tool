@@ -2,6 +2,15 @@
 爆率查询一键生成 更新说明
 ==========================
 
+【V1.1.0】
+- 刷怪间隔显示规则优化: <60显示 XX/分钟, >=60显示 XX(实际YY)/分钟(YY=time/3, 超60固定60)
+- 脚本传送扫描扩大: 覆盖 Npc_Def/MapQuest_Def, 识别 Maps/GroupMapMove 命令
+- 动态创建NPC(CreateNPC)显示具体生成地图坐标
+- MonItems 复制时转 UTF-8, 浏览器双击查看不乱码
+- 新增 MonItems 缺失怪物提示(日志)
+- 生成时显示检测到的引擎类型(LF/GOM)
+- 编码探测增强(BOM/GBK严格/UTF-8回退)
+
 【V1.0.9】
 - 彻底移除 access_parser/construct 第三方库
 - 用纯标准库重写 GOM(Access .mdb) 数据库解析
@@ -22,7 +31,7 @@
 - LF/GEE/V8/GXX: UseSqliteDB 且 SqliteDBFile/SqliteDBName 都有值
 
 【V1.0.5】
-- 修复 GEE 引擎数据库识别(UseAccessDB 优先)
+- 修复 GOM 引擎数据库识别(UseAccessDB 优先)
 - 正确找到 HeroDB.MDB
 
 【V1.0.4】

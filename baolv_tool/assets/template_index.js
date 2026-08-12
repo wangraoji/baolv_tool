@@ -461,6 +461,21 @@ const App = {
                 })
             })
         },
+        // 刷怪间隔显示: <60 显示 XX/分钟; >=60 显示 XX(实际YY)/分钟, YY=time/3, 超60则固定60
+        formatMonGenTime(time) {
+            let t = parseInt(time, 10);
+            if (isNaN(t)) {
+                return time;
+            }
+            if (t < 60) {
+                return t + " / 分钟";
+            }
+            let real = Math.floor(t / 3);
+            if (real > 60) {
+                real = 60;
+            }
+            return t + "（实际" + real + "）/ 分钟";
+        },
         // 刷怪列表点击地图触发
         monGenMapClick(item) {
             if (this.selectMap.key == item.map) {

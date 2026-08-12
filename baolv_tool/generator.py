@@ -210,11 +210,15 @@ def _read_text(path: str, encoding: str = GBK) -> str:
 
 
 def read_auto(path: str) -> str:
-    """优先 GBK，失败退回 UTF-8."""
+    """自动探测编码: BOM优先, 否则 GBK(strict), 失败退 UTF-8."""
+    with open(path, "rb") as f:
+        raw = f.read()
+    if raw.startswith(b"\xef\xbb\xbf"):
+        return raw.decode("utf-8-sig", errors="replace")
     try:
-        return _read_text(path, GBK)
-    except Exception:
-        return _read_text(path, UTF8)
+        return raw.decode(GBK)  # strict, 中文乱码会抛异常
+    except (UnicodeDecodeError, UnicodeError):
+        return raw.decode(UTF8, errors="replace")
 
 
 def _clean_text(text: str) -> str:
@@ -515,10 +519,13 @@ def build_npc_mapgo_js(envir_dir: str, map_info: dict[str, str] | None = None) -
                 npc_name = parts[0].split("|")[-1].strip()
                 merchant_info[parts[0]] = (parts[1], parts[2], parts[3], npc_name)
 
-    script_dirs = ["Market_Def", "QuestDiary"]
+    script_dirs = ["Market_Def", "QuestDiary", "Npc_Def", "MapQuest_Def"]
     skip_names = {"qfunction", "qmanage", "qmapenent", "qmission", "qchatbox", "qbatter", "守关人"}
-    # 收集所有 CreateNPC 创建的 NPC 名 (动态生成NPC)
-    created_npcs: set[str] = set()
+    # 传送命令: MapMove / Map / Maps / GroupMapMove
+    move_cmd_re = re.compile(r"(?im)^\s*(?:MapMove|Map|Maps|GroupMapMove)\s+(\S+)")
+    has_move_re = re.compile(r"(?im)^\s*(?:MapMove|Map|Maps|GroupMapMove)\s+")
+    # 收集所有 CreateNPC 创建的 NPC 名 -> (地图, x, y) (动态生成NPC)
+    created_npcs: dict[str, tuple[str, str, str]] = {}
     for sub in script_dirs:
         base = os.path.join(envir_dir, sub)
         if not os.path.exists(base):
@@ -527,8 +534,14 @@ def build_npc_mapgo_js(envir_dir: str, map_info: dict[str, str] | None = None) -
             for fn in files:
                 if not fn.lower().endswith(".txt"):
                     continue
-                for m in re.finditer(r"CreateNPC\s+(\S+)", read_auto(os.path.join(root, fn)), re.IGNORECASE):
-                    created_npcs.add(m.group(1))
+                for m in re.finditer(
+                    r"CreateNPC\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)",
+                    read_auto(os.path.join(root, fn)),
+                    re.IGNORECASE,
+                ):
+                    name, cmap, cx, cy = m.groups()
+                    if not name.startswith("<") and not cmap.startswith("<"):
+                        created_npcs[name] = (cmap, cx, cy)
 
     for sub in script_dirs:
         base = os.path.join(envir_dir, sub)
@@ -540,7 +553,7 @@ def build_npc_mapgo_js(envir_dir: str, map_info: dict[str, str] | None = None) -
                     continue
                 path = os.path.join(root, fn)
                 text = read_auto(path)
-                if not re.search(r"(?im)^\s*(MapMove|Map)\s+", text):
+                if not has_move_re.search(text):
                     continue
 
                 # 确定 NPC 名: 优先文件名 "NPC名-xxx", 否则用 merchant 匹配
@@ -560,11 +573,11 @@ def build_npc_mapgo_js(envir_dir: str, map_info: dict[str, str] | None = None) -
                 else:
                     npc_label = "脚本"
 
-                # 按 [@标签] 分段, 逐段判断 MapMove/Map 的触发方式
+                # 按 [@标签] 分段, 逐段判断传送命令的触发方式
                 segments = re.split(r"\n(?=\[@)", text)
                 file_kill_mon = ""
                 for seg in segments:
-                    moves = re.findall(r"(?im)^\s*(?:MapMove|Map)\s+(\S+)", seg)
+                    moves = move_cmd_re.findall(seg)
                     targets = [m for m in moves if not m.startswith("<")]
                     seg_name = ""
                     seg_m = re.match(r"\[@([^\]]+)\]", seg)
@@ -600,7 +613,8 @@ def build_npc_mapgo_js(envir_dir: str, map_info: dict[str, str] | None = None) -
                         trigger = "登陆触发"
                     # 5) 动态创建NPC
                     if npc_cand in created_npcs:
-                        trigger = f"{npc_cand} 生成NPC传送"
+                        cmap, cx, cy = created_npcs[npc_cand]
+                        trigger = f"{npc_cand}({cmap} {cx},{cy}生成)传送"
 
                     for target in targets:
                         desc = f"{npc_label} {trigger}传送到{target}"
@@ -733,12 +747,22 @@ def generate(
     monitems_dir = os.path.join(envir_dir, "MonItems")
     os.makedirs(output_dir, exist_ok=True)
 
+    engine_name = "GOM/Access" if engine == "gom" else "LF/SQLite"
+    log(f"检测到引擎: {engine_name}")
     log(f"读取物品数据库 ({engine})...")
     items_js = build_items_js(db_path, engine)
     log("读取怪物列表...")
     mons_js = build_mons_js(db_path, engine)
     log("解析怪物爆率...")
     monoutput_js = build_monoutput_js(db_path, monitems_dir, exclude_names, engine)
+
+    # 检测 MonItems 缺失: DB 怪物表有但无爆率文件
+    if os.path.isdir(monitems_dir):
+        db_mons = [m[0] for m in read_monsters(engine, db_path)]
+        have_files = {fn[:-4] for fn in os.listdir(monitems_dir) if fn.endswith(".txt")}
+        missing = [m for m in db_mons if m not in have_files]
+        if missing:
+            log(f"提示: {len(missing)} 个怪物没有爆率文件(如 {missing[0]})")
     log("解析刷怪列表...")
     mongen_js = build_mongen_js(envir_dir)
     log("解析地图信息...")
@@ -794,7 +818,7 @@ def generate(
 
     shutil.copy2(os.path.join(assets_dir, "favicon.ico"), os.path.join(output_dir, "favicon.ico"))
 
-    # 复制 MonItems 目录 (保持原编码)
+    # 复制 MonItems 目录 (转 UTF-8, 保证浏览器双击查看不乱码)
     log("复制怪物爆率文件...")
     if os.path.exists(monitems_dir):
         dst_mon = os.path.join(output_dir, "MonItems")
@@ -802,7 +826,12 @@ def generate(
         for name in os.listdir(monitems_dir):
             src = os.path.join(monitems_dir, name)
             if os.path.isfile(src):
-                shutil.copy2(src, os.path.join(dst_mon, name))
+                try:
+                    content = read_auto(src)
+                    with open(os.path.join(dst_mon, name), "w", encoding=UTF8) as f:
+                        f.write(content)
+                except Exception:  # noqa: BLE001
+                    shutil.copy2(src, os.path.join(dst_mon, name))
 
     # 复制完整地图文件(供页面上"完整地图文件"链接使用)
     src_mapinfo = os.path.join(envir_dir, "MapInfo.txt")
