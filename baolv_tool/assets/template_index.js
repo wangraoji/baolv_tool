@@ -181,6 +181,16 @@ const App = {
     },
     mounted() {
         this.placeholder = this.menuList[0].placeholder;
+        // 归一化 merchant 分隔符: 兼容 GOM(tab分隔+反斜杠) 与 LF(空格分隔+竖线)
+        if (typeof merchant !== "undefined") {
+            merchant = merchant.map(row => {
+                let r = row.replace(/\\/g, "|");
+                if (r.indexOf("\t") != -1) {
+                    r = r.replace(/\t+/g, " ").replace(/\s+/g, " ").trim();
+                }
+                return r;
+            });
+        }
         this.formatMapGoDb();
         this.formatItems();
         this.getItemList();
@@ -628,13 +638,14 @@ const App = {
                 let tempArr = el.split(" ");
                 if (tempArr.length > 3) {
                     let newArr = tempArr.filter(el => el != '');
-                    let npcFile = newArr[0].split("|").pop();
+                    let npcFile = (newArr[0] || "").split("|").pop();
+                    let mapName = newArr[1] ? (mapInfo[newArr[1].toUpperCase()] || newArr[1]) : "";
                     if (val) {
-                        if (newArr[4].indexOf(val) != -1) {
-                            this.npcList.push(this.getNpcName(newArr[4], npcFile) + "---" + mapInfo[newArr[1].toUpperCase()] + '[' + newArr[2] + "," + newArr[3] + ']')
+                        if (newArr[4] && newArr[4].indexOf(val) != -1) {
+                            this.npcList.push(this.getNpcName(newArr[4], npcFile) + "---" + mapName + '[' + newArr[2] + "," + newArr[3] + ']')
                         }
                     } else {
-                        this.npcList.push(this.getNpcName(newArr[4], npcFile) + "---" + mapInfo[newArr[1].toUpperCase()] + '[' + newArr[2] + "," + newArr[3] + ']')
+                        this.npcList.push(this.getNpcName(newArr[4], npcFile) + "---" + mapName + '[' + newArr[2] + "," + newArr[3] + ']')
                     }
 
                 }
