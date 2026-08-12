@@ -29,17 +29,22 @@ jobs:
       - name: Build EXE
         run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name baolv_tool --icon "baolv_tool/assets/icon.ico" --add-data "baolv_tool/assets;assets" main.py
 
-      - name: Rename EXE
+      - name: Assemble release folder
         shell: pwsh
         run: |
           $ver = "${{ steps.version.outputs.VERSION }}"
           $exeName = "爆率查询一键生成 V$ver.exe"
-          Copy-Item "dist/baolv_tool.exe" "$exeName"
-          Get-ChildItem *.exe
+          $dir = "release"
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          Copy-Item "dist/baolv_tool.exe" "$dir/$exeName"
+          # 转成 GBK 编码, 保证 Windows 记事本正常显示
+          $utf8 = Get-Content "更新说明.txt" -Raw -Encoding UTF8
+          [System.IO.File]::WriteAllText("$dir/更新说明.txt", $utf8, [System.Text.Encoding]::GetEncoding("GB18030"))
+          Get-ChildItem $dir
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: 爆率查询一键生成 V${{ steps.version.outputs.VERSION }}
-          path: 爆率查询一键生成 V${{ steps.version.outputs.VERSION }}.exe
+          path: release/
           if-no-files-found: error

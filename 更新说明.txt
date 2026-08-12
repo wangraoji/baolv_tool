@@ -1,0 +1,45 @@
+==========================
+爆率查询一键生成 更新说明
+==========================
+
+【V1.0.9】
+- 彻底移除 access_parser/construct 第三方库
+- 用纯标准库重写 GOM(Access .mdb) 数据库解析
+- 解决 360 误报木马(Trojan.Win64.SilverFox.ZAX)
+- 修复 NPC 查询 undefined(兼容 GOM tab 分隔格式)
+
+【V1.0.8】
+- 修复 NPC 查询 undefined 问题
+- 兼容 GOM 引擎的 tab 分隔和反斜杠路径
+
+【V1.0.7】
+- 修复地图查询卡死(幻境迷宫等 hub 地图路径爆炸)
+- 走法回溯增加深度和数量限制
+
+【V1.0.6】
+- 引擎识别按配置字段组合判断
+- GOM: UseAccessDB=1 且 AccessFileName 有值
+- LF/GEE/V8/GXX: UseSqliteDB 且 SqliteDBFile/SqliteDBName 都有值
+
+【V1.0.5】
+- 修复 GEE 引擎数据库识别(UseAccessDB 优先)
+- 正确找到 HeroDB.MDB
+
+【V1.0.4】
+- GOM 数据库改用纯 Python 库读取(access_parser)
+- 移除 subprocess 调用, 降低误报风险
+
+【V1.0.3】
+- 按引擎区分数据库读取: LF(sqlite .db) / GOM(Access .mdb)
+- 目录校验不再强制要求 ApexM2.DB
+
+【V1.0.2】
+- NPC 进入未匹配到 merchant 时显示"脚本传送"
+
+【V1.0.1】
+- 修复物品名含换行符导致 JS 语法错误
+
+【V1.0.0】
+- 初版: 从传奇服务端生成爆率查询网页
+- 支持物品/怪物/地图/NPC 查询
+- tkinter 图形界面
