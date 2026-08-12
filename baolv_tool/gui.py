@@ -11,7 +11,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from . import generator
 
-APP_NAME = "爆率查询一键生成 V1.0.6 By qq2152860"
+APP_NAME = "爆率查询一键生成 V1.0.7 By qq2152860"
 
 DEFAULT_EXCLUDE = "物品1,物品2"
 

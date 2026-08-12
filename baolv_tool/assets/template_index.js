@@ -564,7 +564,12 @@ const App = {
                 return
             }
             const routes = [];
-                const walkUpstream = (mapName, route, visited) => {
+            // 防止 hub 地图路径爆炸: 限制递归深度和总路径数
+            const MAX_DEPTH = 10;
+            const MAX_ROUTES = 200;
+                const walkUpstream = (mapName, route, visited, depth) => {
+                    if (routes.length >= MAX_ROUTES) { return; }
+                    if (depth > MAX_DEPTH) { return; }
                     const parents = this.mapGoDb.filter(el => el.to === mapName && !visited.has(el.from));
                     if (parents.length === 0) {
                     if (route.length > 0) {
@@ -575,10 +580,10 @@ const App = {
                 parents.forEach(parent => {
                     const nextVisited = new Set(visited);
                         nextVisited.add(parent.from);
-                    walkUpstream(parent.from, [parent, ...route], nextVisited);
+                    walkUpstream(parent.from, [parent, ...route], nextVisited, depth + 1);
                 })
             }
-                walkUpstream(this.selectMap.item, [], new Set([this.selectMap.item]));
+                walkUpstream(this.selectMap.item, [], new Set([this.selectMap.item]), 0);
             const uniqueRoutes = new Map();
             routes.forEach(route => uniqueRoutes.set(route.join("\n"), route));
             this.mapGoInfo = [...uniqueRoutes.values()];
