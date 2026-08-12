@@ -699,6 +699,7 @@ def build_index_js(template: str, config: dict) -> str:
         ("gonglveShow: false,", f"gonglveShow: {str(config.get('gonglveShow', True)).lower()},"),
         ("isShowMonGenInfo: true,", f"isShowMonGenInfo: {str(config.get('isShowMonGenInfo', True)).lower()},"),
         ("isShowMonGenInfo: false,", f"isShowMonGenInfo: {str(config.get('isShowMonGenInfo', True)).lower()},"),
+        ("let MON_GEN_TIME_REAL = true;", f"let MON_GEN_TIME_REAL = {str(config.get('monGenTimeReal', False)).lower()};"),
     ]
     for old, new in replacements:
         if old in js:

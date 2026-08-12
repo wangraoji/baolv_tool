@@ -11,7 +11,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from . import generator
 
-APP_NAME = "爆率查询一键生成 V1.1.0 By qq2152860"
+APP_NAME = "爆率查询一键生成 V1.1.1 By qq2152860"
 
 DEFAULT_EXCLUDE = "物品1,物品2"
 
@@ -201,6 +201,29 @@ class MainApp:
         if path:
             self.output_var.set(path)
 
+    def _load_local_config(self) -> dict:
+        """读取程序目录旁的 local.ini (自用配置, 不随 exe 分发).
+
+        当前仅支持:
+          mon_gen_time_real=1  -> 刷怪间隔显示"实际"换算(自用)
+          无该文件/为0          -> 显示原始值(发布版)
+        """
+        base = os.path.dirname(os.path.abspath(getattr(sys, "executable", __file__)))
+        ini = os.path.join(base, "local.ini")
+        cfg: dict = {}
+        if os.path.exists(ini):
+            try:
+                for line in open(ini, encoding="utf-8", errors="ignore"):
+                    line = line.strip()
+                    if not line or line.startswith("#") or line.startswith("["):
+                        continue
+                    if "=" in line:
+                        k, v = line.split("=", 1)
+                        cfg[k.strip().lower()] = v.strip()
+            except Exception:  # noqa: BLE001
+                pass
+        return cfg
+
     def _on_generate(self) -> None:
         server_dir = self.server_var.get().strip()
         output_dir = self.output_var.get().strip()
@@ -227,6 +250,7 @@ class MainApp:
             "gonglveShow": self.show_gonglve.get(),
             "isShowMonGenInfo": self.show_mon_gen.get(),
             "webTitle": self.title_var.get().strip() or "查询系统",
+            "monGenTimeReal": self._load_local_config().get("mon_gen_time_real") == "1",
         }
         if self.extra_npc.get():
             config["extra_npc"] = DEFAULT_EXTRA_NPC

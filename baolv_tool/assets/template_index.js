@@ -1,4 +1,7 @@
 
+// 刷怪间隔是否显示"实际"换算形式 (由生成器注入)
+let MON_GEN_TIME_REAL = true;
+
 const App = {
     data() {
         return {
@@ -461,11 +464,14 @@ const App = {
                 })
             })
         },
-        // 刷怪间隔显示: <60 显示 XX/分钟; >=60 显示 XX(实际YY)/分钟, YY=time/3, 超60则固定60
+        // 刷怪间隔显示: 自用版(换算) 显示 XX(实际YY)/分钟; 发布版(原始) 显示 XX/分钟
         formatMonGenTime(time) {
             let t = parseInt(time, 10);
             if (isNaN(t)) {
                 return time;
+            }
+            if (!MON_GEN_TIME_REAL) {
+                return t + " / 分钟";
             }
             if (t < 60) {
                 return t + " / 分钟";
