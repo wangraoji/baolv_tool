@@ -54,73 +54,135 @@ def find_db_file(server_dir: str) -> str | None:
 
 
 def detect_engine(server_dir: str) -> str:
-    """判断服务端引擎类型, 优先看 Config.ini 中数据库路径的后缀.
+    """判断服务端引擎类型, 优先看 Config.ini 中数据库配置.
 
     - 'lf'  : LF/翎风 引擎, 数据库是 sqlite (.db)
-    - 'gom' : GOM 引擎, 数据库是 Access (.mdb / .accdb)
+    - 'gom' : GOM/GEE 引擎, 数据库是 Access (.mdb / .accdb)
     - 'unknown': 无法判断
     """
-    db_ref = _find_db_ref(server_dir)
-    if db_ref:
-        low = db_ref.lower()
-        if low.endswith((".mdb", ".accdb")):
-            return "gom"
-        if low.endswith((".db", ".sqlite", ".sqlite3")):
-            return "lf"
-    # 兜底: 看 UseSqliteDB 字段
     cfg = os.path.join(server_dir, "Config.ini")
     if os.path.exists(cfg):
         text = _read_text(cfg)
+        # 优先看 UseAccessDB / AccessFileName (GOM/GEE 用 Access)
+        if re.search(r"UseAccessDB\s*=\s*1", text, re.IGNORECASE) or "AccessFileName" in text:
+            return "gom"
+        # 看数据库路径后缀
+        db_ref = _find_db_ref(server_dir)
+        if db_ref:
+            low = db_ref.lower()
+            if low.endswith((".mdb", ".accdb")):
+                return "gom"
+            if low.endswith((".db", ".sqlite", ".sqlite3")):
+                return "lf"
+        # 兜底: UseSqliteDB
         if re.search(r"UseSqliteDB\s*=\s*1", text, re.IGNORECASE) or "SqliteDBName" in text:
             return "lf"
     return "unknown"
 
 
 def _find_db_ref(server_dir: str) -> str | None:
-    """从 Config.ini 中找数据库路径引用(.db/.mdb/.accdb 后缀的值)."""
+    """从 Config.ini 中找数据库路径引用.
+
+    优先 AccessFileName(.mdb), 其次 SqliteDBName/SqliteDBFile(.db), 再任意数据库后缀值.
+    """
     cfg = os.path.join(server_dir, "Config.ini")
     if not os.path.exists(cfg):
         return None
     text = _read_text(cfg)
+
+    # 1. 优先 AccessFileName
+    m = re.search(r"AccessFileName\s*=\s*([^\s;]+)", text, re.IGNORECASE)
+    if m:
+        return m.group(1).strip().strip('"').strip("'").replace("\\", "/")
+
+    # 2. 其次 SqliteDBName / SqliteDBFile
+    m = re.search(r"SqliteDB(?:Name|File)\s*=\s*([^\s;]+)", text, re.IGNORECASE)
+    if m:
+        return m.group(1).strip().strip('"').strip("'").replace("\\", "/")
+
+    # 3. 任意数据库后缀值
     for m in re.finditer(r"=\s*([^\s;]+(?:\.db|\.mdb|\.accdb|\.sqlite|\.sqlite3))", text, re.IGNORECASE):
         return m.group(1).strip().strip('"').strip("'").replace("\\", "/")
     return None
 
 
+def _walk_dirs(base: str):
+    """遍历目录, 忽略无权限目录但不中断."""
+    for root, dirs, files in os.walk(base, onerror=lambda e: None):
+        # 过滤掉无法访问的子目录
+        dirs[:] = [d for d in dirs if os.access(os.path.join(root, d), os.R_OK)]
+        yield root, dirs, files
+
+
 def find_any_db(server_dir: str) -> tuple[str, str] | None:
-    """按引擎定位数据库文件, 返回 (engine, db_path)."""
+    """按引擎定位物品/怪物数据库文件, 返回 (engine, db_path).
+
+    查找策略:
+      1. Config.ini 引用的数据库路径(优先实际存在的)
+      2. 标准路径 Mud2/DB 目录下的库文件
+      3. 全目录递归搜索(避免 LoginSrv/FDB 人物库)
+    """
     engine = detect_engine(server_dir)
-    if engine == "gom":
-        # 先从 Config.ini 引用路径找, 再全目录搜
-        ref = _find_db_ref(server_dir)
-        if ref and os.path.exists(ref):
-            return "gom", ref
-        base = os.path.basename(ref) if ref else None
-        for root, _dirs, files in os.walk(server_dir):
+    db_exts_lf = (".db", ".sqlite", ".sqlite3")
+    db_exts_gom = (".mdb", ".accdb")
+    prefer_exts = db_exts_gom if engine == "gom" else (db_exts_lf if engine == "lf" else None)
+
+    # 1. Config.ini 引用(优先实际存在的)
+    ref = _find_db_ref(server_dir)
+    if ref:
+        # 绝对路径或相对服务端
+        cands = [ref]
+        if not os.path.isabs(ref):
+            cands.append(os.path.join(server_dir, ref))
+        for cand in cands:
+            cand = cand.replace("\\", "/")
+            if os.path.exists(cand):
+                low = cand.lower()
+                if low.endswith(db_exts_gom):
+                    return "gom", cand
+                if low.endswith(db_exts_lf):
+                    return "lf", cand
+        # 引用路径不存在, 尝试按 basename 在 Mud2/DB 找
+        base = os.path.basename(ref)
+        std = os.path.join(server_dir, "Mud2", "DB")
+        if os.path.isdir(std):
+            for fn in os.listdir(std):
+                if fn.lower() == base.lower() and os.path.exists(os.path.join(std, fn)):
+                    low = fn.lower()
+                    return ("gom" if low.endswith(db_exts_gom) else "lf"), os.path.join(std, fn)
+
+    # 2. Mud2/DB 标准目录(优先)
+    std = os.path.join(server_dir, "Mud2", "DB")
+    if os.path.isdir(std):
+        for fn in os.listdir(std):
+            low = fn.lower()
+            if prefer_exts and low.endswith(prefer_exts):
+                return ("gom" if low.endswith(db_exts_gom) else "lf"), os.path.join(std, fn)
+        # 无偏好引擎时随便找
+        if not prefer_exts:
+            for fn in os.listdir(std):
+                low = fn.lower()
+                if low.endswith(db_exts_gom):
+                    return "gom", os.path.join(std, fn)
+                if low.endswith(db_exts_lf):
+                    return "lf", os.path.join(std, fn)
+
+    # 3. 全目录递归(排除 LoginSrv, DBServer/FDB 等人物库目录)
+    skip_dirs = {"loginSrv", "dbserver", "logserver", "loginserver", "selgate", "rungate", "logingate"}
+    for root, dirs, files in _walk_dirs(server_dir):
+        dirs[:] = [d for d in dirs if d.lower() not in skip_dirs]
+        for fn in files:
+            low = fn.lower()
+            if prefer_exts and low.endswith(prefer_exts):
+                return ("gom" if low.endswith(db_exts_gom) else "lf"), os.path.join(root, fn)
+        if not prefer_exts:
             for fn in files:
-                if fn.lower().endswith((".mdb", ".accdb")):
-                    if base and fn.lower() == base.lower():
-                        return "gom", os.path.join(root, fn)
-                    if base is None:
-                        return "gom", os.path.join(root, fn)
-        if base:
-            for root, _dirs, files in os.walk(server_dir):
-                for fn in files:
-                    if fn.lower() == base.lower():
-                        return "gom", os.path.join(root, fn)
-        return "gom", None
-    # LF 或未知: 尝试 sqlite
-    db = find_db_file(server_dir)
-    if db:
-        return "lf", db
-    if engine == "unknown":
-        # 兜底: 全目录搜 sqlite / mdb
-        for root, _dirs, files in os.walk(server_dir):
-            for fn in files:
-                if fn.lower().endswith(".db"):
-                    return "lf", os.path.join(root, fn)
-                if fn.lower().endswith((".mdb", ".accdb")):
+                low = fn.lower()
+                if low.endswith(db_exts_gom):
                     return "gom", os.path.join(root, fn)
+                if low.endswith(db_exts_lf):
+                    return "lf", os.path.join(root, fn)
+
     return None
 
 
