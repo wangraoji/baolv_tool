@@ -236,37 +236,23 @@ def _read_sqlite_rows(db_path: str, table: str, columns: str) -> list[tuple]:
 
 
 def _read_mdb_rows(db_path: str, table: str, columns: str) -> list[tuple]:
-    """用纯 Python 库 access_parser 读取 Access(.mdb) 数据库表.
+    """用纯标准库 mdb_reader 读取 Access(.mdb) 数据库表.
 
-    access_parser 无需外部工具/驱动, 纯解析 .mdb 文件.
-    注意: 仅支持 .mdb (Jet), 不支持 .accdb.
+    无第三方依赖(避免 access_parser/construct 被杀软误报).
     """
-    try:
-        from access_parser import AccessParser
-    except ImportError:
-        raise RuntimeError(
-            "读取 GOM 数据库失败: 缺少 access_parser 库, 请安装依赖 (pip install access_parser)"
-        )
+    from . import mdb_reader
 
     if not os.path.exists(db_path):
         raise RuntimeError(f"数据库文件不存在: {db_path}")
 
-    try:
-        db = AccessParser(db_path)
-    except Exception as exc:  # noqa: BLE001
-        raise RuntimeError(f"打开数据库失败(可能是 .accdb 格式): {exc}")
-    try:
-        data = db.parse_table(table)  # data[列名][行索引]
-    except Exception as exc:  # noqa: BLE001
-        raise RuntimeError(f"读取数据库表 {table} 失败: {exc}")
-
-    want = [c.strip() for c in columns.split(",")]
+    data = mdb_reader.read_table(db_path, table)
+    want = [c.strip().lower() for c in columns.split(",")]
     col_list = list(data.keys())
     idxs = []
     for w in want:
         found = -1
         for i, c in enumerate(col_list):
-            if c.lower() == w.lower():
+            if c.lower() == w:
                 found = i
                 break
         idxs.append(found)
@@ -274,7 +260,7 @@ def _read_mdb_rows(db_path: str, table: str, columns: str) -> list[tuple]:
         return []
 
     rows: list[tuple] = []
-    nrows = len(data[col_list[0]])
+    nrows = min(len(data[col_list[i]]) for i in idxs)
     for r in range(nrows):
         rows.append(tuple(data[col_list[i]][r] for i in idxs))
     return rows
