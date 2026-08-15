@@ -101,7 +101,8 @@ def _find_db_ref(server_dir: str) -> str | None:
     """从 Config.ini 中找数据库路径引用(不依赖 detect_engine, 避免循环).
 
     规则:
-      - 有 UseAccessDB=1 且 AccessFileName 有值 -> 返回 AccessFileName
+      - UseAccessDB=1 且 AccessFileName 有值 -> 返回 AccessFileName (GOM)
+      - UseSqliteDB=1 且非 Access 模式, SqliteDBFile 有值 -> 返回 SqliteDBFile (LF/GEE)
       - 否则若 SqliteDBName/SqliteDBFile 有值 -> 返回之
       - 兜底: 任意数据库后缀值
     """
@@ -111,6 +112,12 @@ def _find_db_ref(server_dir: str) -> str | None:
     access_file = _cfg_value(text, "AccessFileName")
     if use_access and use_access != "0" and access_file:
         return access_file.replace("\\", "/")
+
+    # UseSqliteDB=1 且非 Access 模式时, 优先取 SqliteDBFile 指向的库 (LF/GEE 通用)
+    use_sqlite = _cfg_value(text, "UseSqliteDB")
+    sqlite_file = _cfg_value(text, "SqliteDBFile")
+    if use_sqlite and use_sqlite != "0" and sqlite_file:
+        return sqlite_file.replace("\\", "/")
 
     m = re.search(r"SqliteDB(?:Name|File)\s*=\s*([^\s;]+)", text, re.IGNORECASE)
     if m:
@@ -142,29 +149,44 @@ def find_any_db(server_dir: str) -> tuple[str, str] | None:
 
     # 1. Mud2/DB 目录实际文件(物品/怪物库标准位置)
     if os.path.isdir(std):
-        gom_found = None
-        lf_found = None
+        gom_files: list[str] = []
+        lf_files: list[str] = []
         for fn in os.listdir(std):
             low = fn.lower()
             p = os.path.join(std, fn)
             if os.path.isfile(p):
                 if low.endswith(db_exts_gom):
-                    gom_found = p
+                    gom_files.append(p)
                 elif low.endswith(db_exts_lf):
-                    lf_found = p
-        if gom_found and lf_found:
-            # 两者都有: 用 Config.ini 引用区分
+                    lf_files.append(p)
+        if gom_files or lf_files:
+            # 优先 Config.ini 引用的文件(引擎实际使用的库),
+            # 其次标准文件名, 避免误选 Magic.DB 等非物品/怪物库
             ref = _find_db_ref(server_dir)
-            if ref and ref.lower().endswith((".mdb", ".accdb")):
-                return "gom", gom_found
-            if ref and ref.lower().endswith((".db", ".sqlite", ".sqlite3")):
-                return "lf", lf_found
-            # 无法区分则优先 gom(访问库常为 HeroDB.MDB)
-            return "gom", gom_found
-        if gom_found:
-            return "gom", gom_found
-        if lf_found:
-            return "lf", lf_found
+            if ref:
+                abs_ref = ref if os.path.isabs(ref) else os.path.join(server_dir, ref)
+                norm = os.path.normpath(abs_ref).replace("/", "\\")
+                if norm in lf_files:
+                    return "lf", norm
+                if norm in gom_files:
+                    return "gom", norm
+            for p in lf_files:
+                if os.path.basename(p).lower() in ("apexm2.db", "apexm2.sqlite", "apexm2.sqlite3"):
+                    return "lf", p
+            for p in gom_files:
+                if os.path.basename(p).lower() in ("herodb.mdb", "herodb.accdb"):
+                    return "gom", p
+            if gom_files and lf_files:
+                if ref and ref.lower().endswith((".mdb", ".accdb")):
+                    return "gom", gom_files[0]
+                if ref and ref.lower().endswith((".db", ".sqlite", ".sqlite3")):
+                    return "lf", lf_files[0]
+                # 无法区分则优先 gom(访问库常为 HeroDB.MDB)
+                return "gom", gom_files[0]
+            if gom_files:
+                return "gom", gom_files[0]
+            if lf_files:
+                return "lf", lf_files[0]
 
     # 2. Config.ini 引用(实际存在)
     ref = _find_db_ref(server_dir)

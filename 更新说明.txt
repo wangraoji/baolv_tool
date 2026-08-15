@@ -2,6 +2,10 @@
 爆率查询一键生成 更新说明
 ==========================
 
+【V1.1.2】
+- 数据库定位优化: UseSqliteDB=1 且非 Access 模式时, 优先取 Config.ini 中 SqliteDBFile 指向的库 (LF/GEE 通用)
+- 修复 Mud2/DB 目录同时存在 ApexM2.DB 与 Magic.DB 时误选 Magic.DB 导致 "file is not a database" 报错
+
 【V1.1.1】
 - 刷怪间隔换算改为自用配置: 程序目录放 local.ini(mon_gen_time_real=1)才启用
 - 发布版默认显示原始值(480/分钟), 自用版才显示 480(实际60)/分钟
